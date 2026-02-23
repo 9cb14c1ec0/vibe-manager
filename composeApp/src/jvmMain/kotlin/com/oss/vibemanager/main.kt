@@ -51,6 +51,8 @@ fun main() = application {
                         onClaudeSessionStarted = {
                             viewModel.markClaudeSessionStarted(task.id)
                         },
+                        shellType = appState.shellType,
+                        gitBashPath = viewModel.gitBashPath,
                         isActive = isActive,
                     )
                 }

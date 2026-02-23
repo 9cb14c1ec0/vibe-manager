@@ -2,16 +2,27 @@ package com.oss.vibemanager.terminal
 
 import com.jediterm.core.util.TermSize
 import com.jediterm.terminal.ProcessTtyConnector
+import com.oss.vibemanager.model.ShellType
 import com.pty4j.PtyProcess
 import com.pty4j.PtyProcessBuilder
 import com.pty4j.WinSize
 import java.nio.charset.StandardCharsets
 
 class PtyConnectorFactory {
-    fun createConnector(workingDir: String): PtyProcessTtyConnector {
+    fun createConnector(
+        workingDir: String,
+        shellType: ShellType = ShellType.Cmd,
+        gitBashPath: String? = null,
+    ): PtyProcessTtyConnector {
         val isWindows = System.getProperty("os.name").lowercase().contains("win")
         val cmd = if (isWindows) {
-            arrayOf("cmd.exe")
+            when (shellType) {
+                ShellType.GitBash -> {
+                    val bash = gitBashPath ?: "C:/Program Files/Git/bin/bash.exe"
+                    arrayOf(bash, "--login")
+                }
+                ShellType.Cmd -> arrayOf("cmd.exe")
+            }
         } else {
             arrayOf("/bin/bash", "--login")
         }

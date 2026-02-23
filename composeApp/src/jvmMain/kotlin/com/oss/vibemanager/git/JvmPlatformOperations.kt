@@ -33,4 +33,31 @@ class JvmPlatformOperations : PlatformOperations {
     }
 
     override fun fileExists(path: String): Boolean = File(path).exists()
+
+    override fun findGitBashPath(): String? {
+        val candidates = listOf(
+            "C:/Program Files/Git/bin/bash.exe",
+            "C:/Program Files (x86)/Git/bin/bash.exe",
+        )
+        candidates.firstOrNull { File(it).exists() }?.let { return it }
+
+        // Try to find via git --exec-path for portable installs
+        return try {
+            val process = ProcessBuilder("git", "--exec-path")
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText().trim()
+            process.waitFor()
+            if (process.exitValue() == 0 && output.isNotEmpty()) {
+                // git --exec-path returns something like C:/Program Files/Git/mingw64/libexec/git-core
+                // Navigate up to find bin/bash.exe
+                var dir = File(output)
+                repeat(3) { dir = dir.parentFile ?: return null }
+                val bash = File(dir, "bin/bash.exe")
+                if (bash.exists()) bash.absolutePath else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
 }

@@ -1,9 +1,11 @@
 package com.oss.vibemanager
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,8 +25,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Mica
+import io.github.composefluent.component.Button
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.Icon
@@ -36,7 +40,9 @@ import io.github.composefluent.component.rememberNavigationState
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Add
 import io.github.composefluent.icons.regular.Folder
+import io.github.composefluent.icons.regular.Settings
 import io.github.composefluent.icons.regular.WindowDevTools
+import com.oss.vibemanager.model.ShellType
 import com.oss.vibemanager.model.TaskState
 import com.oss.vibemanager.ui.dialogs.AddProjectDialog
 import com.oss.vibemanager.ui.screens.ProjectDetailScreen
@@ -58,6 +64,7 @@ fun App(
     val navigation by viewModel.navigation.collectAsState()
     val error by viewModel.error.collectAsState()
     var showAddProject by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val navigationState = rememberNavigationState()
     val openedTaskIds = remember { mutableStateListOf<String>() }
     val idleTaskIds = remember { mutableStateMapOf<String, Boolean>() }
@@ -82,7 +89,7 @@ fun App(
         }
     }
 
-    val anyDialogOpen = showAddProject || error != null
+    val anyDialogOpen = showAddProject || showSettings || error != null
 
     FluentTheme {
         Mica(modifier = Modifier.fillMaxSize()) {
@@ -101,6 +108,7 @@ fun App(
                         }
                     }
                     entries.add(SidebarEntry.AddProject)
+                    entries.add(SidebarEntry.SettingsItem)
 
                     items(entries.size) { index ->
                         when (val entry = entries[index]) {
@@ -147,6 +155,14 @@ fun App(
                                     onClick = { showAddProject = true },
                                     text = { Text("Add Project") },
                                     icon = { Icon(Icons.Regular.Add, contentDescription = "Add project") },
+                                )
+                            }
+                            is SidebarEntry.SettingsItem -> {
+                                MenuItem(
+                                    selected = false,
+                                    onClick = { showSettings = true },
+                                    text = { Text("Settings") },
+                                    icon = { Icon(Icons.Regular.Settings, contentDescription = "Settings") },
                                 )
                             }
                         }
@@ -214,6 +230,48 @@ fun App(
         )
     }
 
+    if (showSettings) {
+        val currentShell = appState.shellType
+        val gitBashAvailable = viewModel.gitBashAvailable
+        ContentDialog(
+            title = "Settings",
+            visible = true,
+            content = {
+                Column {
+                    Text("Terminal Shell", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    Button(
+                        onClick = {
+                            viewModel.setShellType(ShellType.Cmd)
+                            showSettings = false
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    ) {
+                        Text(if (currentShell == ShellType.Cmd) "cmd.exe (current)" else "cmd.exe")
+                    }
+                    if (gitBashAvailable) {
+                        Button(
+                            onClick = {
+                                viewModel.setShellType(ShellType.GitBash)
+                                showSettings = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (currentShell == ShellType.GitBash) "Git Bash (current)" else "Git Bash")
+                        }
+                    } else {
+                        Text(
+                            "Git Bash not detected",
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
+            },
+            primaryButtonText = "Close",
+            onButtonClick = { showSettings = false },
+        )
+    }
+
     error?.let { msg ->
         ContentDialog(
             title = "Error",
@@ -229,4 +287,5 @@ private sealed class SidebarEntry {
     data class ProjectItem(val projectId: String, val name: String) : SidebarEntry()
     data class TaskItem(val taskId: String, val name: String, val state: TaskState, val idle: Boolean) : SidebarEntry()
     data object AddProject : SidebarEntry()
+    data object SettingsItem : SidebarEntry()
 }

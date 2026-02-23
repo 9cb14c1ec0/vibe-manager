@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.Text
+import com.oss.vibemanager.model.ShellType
 import com.oss.vibemanager.model.Task
 import com.oss.vibemanager.model.TaskState
 import com.oss.vibemanager.terminal.TerminalSessionManager
@@ -33,6 +34,8 @@ fun TaskTerminalScreen(
     onBack: () -> Unit,
     onProcessExit: () -> Unit,
     onClaudeSessionStarted: () -> Unit = {},
+    shellType: ShellType = ShellType.Cmd,
+    gitBashPath: String? = null,
     isActive: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -78,6 +81,8 @@ fun TaskTerminalScreen(
                 sessionManager = sessionManager,
                 onProcessExit = onProcessExit,
                 launchClaude = launchClaude,
+                shellType = shellType,
+                gitBashPath = gitBashPath,
                 isActive = isActive,
                 modifier = Modifier.fillMaxSize(),
             )

@@ -4,6 +4,7 @@ import com.jediterm.terminal.TerminalColor
 import com.jediterm.terminal.TextStyle
 import com.jediterm.terminal.ui.JediTermWidget
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider
+import com.oss.vibemanager.model.ShellType
 import javax.swing.JPanel
 import java.awt.BorderLayout
 import kotlin.concurrent.thread
@@ -39,6 +40,8 @@ class TerminalSessionManager {
         resume: Boolean,
         claudeSessionId: String = "",
         launchClaude: Boolean = true,
+        shellType: ShellType = ShellType.Cmd,
+        gitBashPath: String? = null,
         onProcessExit: () -> Unit,
     ): TerminalSession {
         // If session exists and is still alive, reuse it
@@ -50,7 +53,7 @@ class TerminalSessionManager {
 
         val settings = DarkSettingsProvider()
         val widget = JediTermWidget(120, 40, settings)
-        val connector = factory.createConnector(workingDir)
+        val connector = factory.createConnector(workingDir, shellType, gitBashPath)
         widget.setTtyConnector(connector)
         widget.start()
 

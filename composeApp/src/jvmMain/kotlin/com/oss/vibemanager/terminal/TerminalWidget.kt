@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.SwingPanel
+import com.oss.vibemanager.model.ShellType
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
 import java.awt.BorderLayout
@@ -17,11 +18,13 @@ fun TerminalWidget(
     sessionManager: TerminalSessionManager,
     onProcessExit: () -> Unit,
     launchClaude: Boolean = true,
+    shellType: ShellType = ShellType.Cmd,
+    gitBashPath: String? = null,
     isActive: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val session = remember(taskId) {
-        sessionManager.getOrCreate(taskId, workingDir, resume, claudeSessionId, launchClaude, onProcessExit)
+        sessionManager.getOrCreate(taskId, workingDir, resume, claudeSessionId, launchClaude, shellType, gitBashPath, onProcessExit)
     }
 
     SwingPanel(
