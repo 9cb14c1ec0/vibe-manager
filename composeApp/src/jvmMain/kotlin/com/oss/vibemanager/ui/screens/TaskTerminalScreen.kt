@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,11 +32,18 @@ fun TaskTerminalScreen(
     sessionManager: TerminalSessionManager,
     onBack: () -> Unit,
     onProcessExit: () -> Unit,
+    onClaudeSessionStarted: () -> Unit = {},
     isActive: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var resetCounter by remember(task.id) { mutableIntStateOf(0) }
     var launchClaude by remember(task.id) { mutableStateOf(true) }
+
+    LaunchedEffect(task.id) {
+        if (!task.claudeSessionStarted) {
+            onClaudeSessionStarted()
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -65,7 +73,8 @@ fun TaskTerminalScreen(
             TerminalWidget(
                 taskId = task.id,
                 workingDir = task.worktreePath,
-                resume = task.state != TaskState.Created || resetCounter > 0,
+                resume = task.claudeSessionStarted || resetCounter > 0,
+                claudeSessionId = task.claudeSessionId,
                 sessionManager = sessionManager,
                 onProcessExit = onProcessExit,
                 launchClaude = launchClaude,

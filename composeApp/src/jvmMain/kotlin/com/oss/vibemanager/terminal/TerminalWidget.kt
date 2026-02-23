@@ -13,6 +13,7 @@ fun TerminalWidget(
     taskId: String,
     workingDir: String,
     resume: Boolean,
+    claudeSessionId: String = "",
     sessionManager: TerminalSessionManager,
     onProcessExit: () -> Unit,
     launchClaude: Boolean = true,
@@ -20,7 +21,7 @@ fun TerminalWidget(
     modifier: Modifier = Modifier,
 ) {
     val session = remember(taskId) {
-        sessionManager.getOrCreate(taskId, workingDir, resume, launchClaude, onProcessExit)
+        sessionManager.getOrCreate(taskId, workingDir, resume, claudeSessionId, launchClaude, onProcessExit)
     }
 
     SwingPanel(

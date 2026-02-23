@@ -37,6 +37,7 @@ class TerminalSessionManager {
         taskId: String,
         workingDir: String,
         resume: Boolean,
+        claudeSessionId: String = "",
         launchClaude: Boolean = true,
         onProcessExit: () -> Unit,
     ): TerminalSession {
@@ -54,7 +55,12 @@ class TerminalSessionManager {
         widget.start()
 
         if (launchClaude) {
-            val claudeCmd = if (resume) "claude --continue\r" else "claude\r"
+            val claudeCmd = if (claudeSessionId.isNotEmpty()) {
+                if (resume) "claude --resume $claudeSessionId\r"
+                else "claude --session-id $claudeSessionId\r"
+            } else {
+                if (resume) "claude --continue\r" else "claude\r"
+            }
             thread(isDaemon = true) {
                 Thread.sleep(500)
                 connector.sendCommand(claudeCmd)

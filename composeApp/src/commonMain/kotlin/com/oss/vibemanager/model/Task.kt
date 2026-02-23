@@ -14,4 +14,6 @@ data class Task(
     val worktreePath: String,
     val state: TaskState = TaskState.Created,
     val createdAt: Long,
+    val claudeSessionId: String = "",
+    val claudeSessionStarted: Boolean = false,
 )

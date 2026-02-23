@@ -15,6 +15,7 @@ interface PlatformOperations {
     fun currentTimeMillis(): Long
     fun isGitRepo(path: String): Boolean
     fun getRepoName(path: String): String
+    fun gitPull(repoPath: String): Result<Unit>
     fun createWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit>
     fun removeWorktree(repoPath: String, worktreePath: String): Result<Unit>
     fun deleteBranch(repoPath: String, branchName: String): Result<Unit>
@@ -99,6 +100,9 @@ class AppViewModel(
         val worktreeBase = platform.getWorktreeBasePath(project.repoPath)
         val worktreePath = "$worktreeBase/$branchName"
 
+        // Pull latest before creating worktree to reduce conflicts
+        platform.gitPull(project.repoPath)
+
         val result = platform.createWorktree(project.repoPath, worktreePath, branchName)
         if (result.isFailure) {
             _error.value = "Failed to create worktree: ${result.exceptionOrNull()?.message}"
@@ -112,6 +116,7 @@ class AppViewModel(
             branchName = branchName,
             worktreePath = worktreePath,
             createdAt = platform.currentTimeMillis(),
+            claudeSessionId = platform.generateId(),
         )
         _appState.update { it.copy(tasks = it.tasks + task) }
         save()
@@ -131,6 +136,17 @@ class AppViewModel(
             val target = if (project != null) NavigationTarget.ProjectDetail(project.id) else NavigationTarget.Empty
             _navigation.value = target
         }
+    }
+
+    fun markClaudeSessionStarted(id: String) {
+        _appState.update { state ->
+            state.copy(
+                tasks = state.tasks.map { t ->
+                    if (t.id == id) t.copy(claudeSessionStarted = true) else t
+                }
+            )
+        }
+        save()
     }
 
     fun updateTaskState(id: String, newState: TaskState) {

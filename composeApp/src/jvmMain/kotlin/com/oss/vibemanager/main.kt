@@ -48,6 +48,9 @@ fun main() = application {
                         onProcessExit = {
                             // Don't auto-complete — user can reopen to resume
                         },
+                        onClaudeSessionStarted = {
+                            viewModel.markClaudeSessionStarted(task.id)
+                        },
                         isActive = isActive,
                     )
                 }

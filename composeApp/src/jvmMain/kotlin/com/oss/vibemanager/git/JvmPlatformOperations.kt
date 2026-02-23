@@ -14,6 +14,9 @@ class JvmPlatformOperations : PlatformOperations {
 
     override fun getRepoName(path: String): String = File(path).name
 
+    override fun gitPull(repoPath: String): Result<Unit> =
+        GitOperations.pull(repoPath)
+
     override fun createWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> =
         GitOperations.createWorktree(repoPath, worktreePath, branchName)
 

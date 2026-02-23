@@ -27,6 +27,10 @@ object GitOperations {
         )
     }
 
+    fun pull(repoPath: String): Result<Unit> {
+        return runGit(repoPath, "pull").map { }
+    }
+
     fun createWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> {
         return runGit(repoPath, "worktree", "add", "-b", branchName, worktreePath).map { }
     }

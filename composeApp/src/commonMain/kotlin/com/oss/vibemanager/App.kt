@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -189,10 +190,12 @@ fun App(
 
                     // Render all opened terminals persistently inside content area
                     for (taskId in openedTaskIds) {
-                        val isActive = taskId == activeTerminalId && !anyDialogOpen
-                        val mod = if (isActive) Modifier.fillMaxSize() else Modifier.size(0.dp)
-                        Box(modifier = mod) {
-                            terminalContent(taskId, isActive)
+                        key(taskId) {
+                            val isActive = taskId == activeTerminalId && !anyDialogOpen
+                            val mod = if (isActive) Modifier.fillMaxSize() else Modifier.size(0.dp)
+                            Box(modifier = mod) {
+                                terminalContent(taskId, isActive)
+                            }
                         }
                     }
                 }
