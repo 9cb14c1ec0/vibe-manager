@@ -25,6 +25,7 @@ import com.oss.vibemanager.ui.components.GitInfoBar
 import com.oss.vibemanager.ui.components.TaskCard
 import com.oss.vibemanager.ui.dialogs.ConfirmDeleteDialog
 import com.oss.vibemanager.ui.dialogs.CreateTaskDialog
+import com.oss.vibemanager.ui.dialogs.FromBranchDialog
 
 @Composable
 fun ProjectDetailScreen(
@@ -33,12 +34,16 @@ fun ProjectDetailScreen(
     gitBranch: String,
     gitClean: Boolean,
     onCreateTask: (name: String, branch: String) -> Unit,
+    onListBranches: () -> Result<List<String>>,
+    onCreateTaskFromBranch: (name: String, branch: String) -> Unit,
     onOpenTask: (Task) -> Unit,
     onDeleteTask: (Task) -> Unit,
     onRemoveProject: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showCreateTask by remember { mutableStateOf(false) }
+    var showFromBranch by remember { mutableStateOf(false) }
+    var availableBranches by remember { mutableStateOf<List<String>>(emptyList()) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
     var showDeleteProject by remember { mutableStateOf(false) }
 
@@ -62,7 +67,13 @@ fun ProjectDetailScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("Tasks", fontSize = 18.sp)
-            Button(onClick = { showCreateTask = true }) { Text("New Task") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = {
+                    availableBranches = onListBranches().getOrDefault(emptyList())
+                    showFromBranch = true
+                }) { Text("From Branch") }
+                Button(onClick = { showCreateTask = true }) { Text("New Task") }
+            }
         }
 
         if (tasks.isEmpty()) {
@@ -92,6 +103,17 @@ fun ProjectDetailScreen(
             onCreate = { name, branch ->
                 onCreateTask(name, branch)
                 showCreateTask = false
+            },
+        )
+    }
+
+    if (showFromBranch) {
+        FromBranchDialog(
+            branches = availableBranches,
+            onDismiss = { showFromBranch = false },
+            onCreate = { name, branch ->
+                onCreateTaskFromBranch(name, branch)
+                showFromBranch = false
             },
         )
     }

@@ -185,6 +185,10 @@ fun App(
                                     onCreateTask = { name, branchName ->
                                         viewModel.createTask(project.id, name, branchName)
                                     },
+                                    onListBranches = { viewModel.listBranches(project.id) },
+                                    onCreateTaskFromBranch = { name, branchName ->
+                                        viewModel.createTaskFromBranch(project.id, name, branchName)
+                                    },
                                     onOpenTask = { task ->
                                         viewModel.updateTaskState(task.id, TaskState.Running)
                                         viewModel.navigateTo(NavigationTarget.TaskTerminal(task.id))

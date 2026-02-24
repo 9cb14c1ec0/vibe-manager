@@ -23,6 +23,8 @@ interface PlatformOperations {
     fun getWorktreeBasePath(repoPath: String): String
     fun fileExists(path: String): Boolean
     fun findGitBashPath(): String?
+    fun listBranches(repoPath: String): Result<List<String>>
+    fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit>
 }
 
 sealed class NavigationTarget {
@@ -109,6 +111,41 @@ class AppViewModel(
         platform.gitPull(project.repoPath)
 
         val result = platform.createWorktree(project.repoPath, worktreePath, branchName)
+        if (result.isFailure) {
+            _error.value = "Failed to create worktree: ${result.exceptionOrNull()?.message}"
+            return false
+        }
+
+        val task = Task(
+            id = platform.generateId(),
+            projectId = projectId,
+            name = name,
+            branchName = branchName,
+            worktreePath = worktreePath,
+            createdAt = platform.currentTimeMillis(),
+            claudeSessionId = platform.generateId(),
+        )
+        _appState.update { it.copy(tasks = it.tasks + task) }
+        save()
+        return true
+    }
+
+    fun listBranches(projectId: String): Result<List<String>> {
+        val project = _appState.value.projects.find { it.id == projectId }
+            ?: return Result.failure(Exception("Project not found"))
+        return platform.listBranches(project.repoPath)
+    }
+
+    fun createTaskFromBranch(projectId: String, name: String, branchName: String): Boolean {
+        val project = _appState.value.projects.find { it.id == projectId }
+        if (project == null) {
+            _error.value = "Project not found"
+            return false
+        }
+        val worktreeBase = platform.getWorktreeBasePath(project.repoPath)
+        val worktreePath = "$worktreeBase/$branchName"
+
+        val result = platform.checkoutWorktree(project.repoPath, worktreePath, branchName)
         if (result.isFailure) {
             _error.value = "Failed to create worktree: ${result.exceptionOrNull()?.message}"
             return false

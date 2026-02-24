@@ -32,6 +32,12 @@ class JvmPlatformOperations : PlatformOperations {
         return File(parent, "${repoName}-worktrees").absolutePath
     }
 
+    override fun listBranches(repoPath: String): Result<List<String>> =
+        GitOperations.listBranches(repoPath)
+
+    override fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> =
+        GitOperations.checkoutWorktree(repoPath, worktreePath, branchName)
+
     override fun fileExists(path: String): Boolean = File(path).exists()
 
     override fun findGitBashPath(): String? {

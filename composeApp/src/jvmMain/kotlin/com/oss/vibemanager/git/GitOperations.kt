@@ -43,6 +43,20 @@ object GitOperations {
         return runGit(repoPath, "branch", "-D", branchName).map { }
     }
 
+    fun listBranches(repoPath: String): Result<List<String>> = runCatching {
+        val branches = runGit(repoPath, "branch", "--format=%(refname:short)").getOrThrow()
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val worktreeBranches = runGit(repoPath, "worktree", "list", "--porcelain").getOrThrow()
+            .lines().filter { it.startsWith("branch ") }
+            .map { it.removePrefix("branch refs/heads/") }
+            .toSet()
+        branches.filter { it !in worktreeBranches }
+    }
+
+    fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> {
+        return runGit(repoPath, "worktree", "add", worktreePath, branchName).map { }
+    }
+
     private fun runGit(workingDir: String, vararg args: String): Result<String> = runCatching {
         val process = ProcessBuilder("git", *args)
             .directory(File(workingDir))
