@@ -35,6 +35,7 @@ fun ProjectDetailScreen(
     gitClean: Boolean,
     onCreateTask: (name: String, branch: String) -> Unit,
     onListBranches: () -> Result<List<String>>,
+    onListRemoteBranches: () -> Result<List<String>>,
     onCreateTaskFromBranch: (name: String, branch: String) -> Unit,
     onOpenTask: (Task) -> Unit,
     onDeleteTask: (Task) -> Unit,
@@ -44,6 +45,7 @@ fun ProjectDetailScreen(
     var showCreateTask by remember { mutableStateOf(false) }
     var showFromBranch by remember { mutableStateOf(false) }
     var availableBranches by remember { mutableStateOf<List<String>>(emptyList()) }
+    var availableRemoteBranches by remember { mutableStateOf<List<String>>(emptyList()) }
     var taskToDelete by remember { mutableStateOf<Task?>(null) }
     var showDeleteProject by remember { mutableStateOf(false) }
 
@@ -70,6 +72,7 @@ fun ProjectDetailScreen(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
                     availableBranches = onListBranches().getOrDefault(emptyList())
+                    availableRemoteBranches = onListRemoteBranches().getOrDefault(emptyList())
                     showFromBranch = true
                 }) { Text("From Branch") }
                 Button(onClick = { showCreateTask = true }) { Text("New Task") }
@@ -109,7 +112,8 @@ fun ProjectDetailScreen(
 
     if (showFromBranch) {
         FromBranchDialog(
-            branches = availableBranches,
+            localBranches = availableBranches,
+            remoteBranches = availableRemoteBranches,
             onDismiss = { showFromBranch = false },
             onCreate = { name, branch ->
                 onCreateTaskFromBranch(name, branch)

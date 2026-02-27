@@ -24,6 +24,7 @@ interface PlatformOperations {
     fun fileExists(path: String): Boolean
     fun findGitBashPath(): String?
     fun listBranches(repoPath: String): Result<List<String>>
+    fun listRemoteBranches(repoPath: String): Result<List<String>>
     fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit>
 }
 
@@ -134,6 +135,12 @@ class AppViewModel(
         val project = _appState.value.projects.find { it.id == projectId }
             ?: return Result.failure(Exception("Project not found"))
         return platform.listBranches(project.repoPath)
+    }
+
+    fun listRemoteBranches(projectId: String): Result<List<String>> {
+        val project = _appState.value.projects.find { it.id == projectId }
+            ?: return Result.failure(Exception("Project not found"))
+        return platform.listRemoteBranches(project.repoPath)
     }
 
     fun createTaskFromBranch(projectId: String, name: String, branchName: String): Boolean {

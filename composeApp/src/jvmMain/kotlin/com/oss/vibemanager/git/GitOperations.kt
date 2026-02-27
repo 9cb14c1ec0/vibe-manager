@@ -53,6 +53,25 @@ object GitOperations {
         branches.filter { it !in worktreeBranches }
     }
 
+    fun listRemoteBranches(repoPath: String): Result<List<String>> = runCatching {
+        // Fetch latest from remote
+        runGit(repoPath, "fetch", "--prune").getOrThrow()
+
+        val localBranches = runGit(repoPath, "branch", "--format=%(refname:short)").getOrThrow()
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val worktreeBranches = runGit(repoPath, "worktree", "list", "--porcelain").getOrThrow()
+            .lines().filter { it.startsWith("branch ") }
+            .map { it.removePrefix("branch refs/heads/") }
+            .toSet()
+        val usedBranches = localBranches + worktreeBranches
+
+        runGit(repoPath, "branch", "-r", "--format=%(refname:short)").getOrThrow()
+            .lines().map { it.trim() }.filter { it.isNotEmpty() }
+            .filter { !it.endsWith("/HEAD") }
+            .map { it.removePrefix("origin/") }
+            .filter { it !in usedBranches }
+    }
+
     fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> {
         return runGit(repoPath, "worktree", "add", worktreePath, branchName).map { }
     }

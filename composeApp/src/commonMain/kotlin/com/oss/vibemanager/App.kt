@@ -186,6 +186,7 @@ fun App(
                                         viewModel.createTask(project.id, name, branchName)
                                     },
                                     onListBranches = { viewModel.listBranches(project.id) },
+                                    onListRemoteBranches = { viewModel.listRemoteBranches(project.id) },
                                     onCreateTaskFromBranch = { name, branchName ->
                                         viewModel.createTaskFromBranch(project.id, name, branchName)
                                     },

@@ -35,6 +35,9 @@ class JvmPlatformOperations : PlatformOperations {
     override fun listBranches(repoPath: String): Result<List<String>> =
         GitOperations.listBranches(repoPath)
 
+    override fun listRemoteBranches(repoPath: String): Result<List<String>> =
+        GitOperations.listRemoteBranches(repoPath)
+
     override fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> =
         GitOperations.checkoutWorktree(repoPath, worktreePath, branchName)
 
