@@ -24,6 +24,7 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation("io.github.compose-fluent:fluent:v0.1.0")
             implementation("io.github.compose-fluent:fluent-icons-extended:v0.1.0")
+            implementation("dev.snipme:kodeview:0.9.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

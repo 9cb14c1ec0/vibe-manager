@@ -1,5 +1,6 @@
 package com.oss.vibemanager
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,6 +57,7 @@ fun App(
     onBrowseDirectory: () -> String?,
     chatContent: @Composable (taskId: String, isActive: Boolean) -> Unit,
     gitInfoProvider: (repoPath: String) -> Pair<String, Boolean>,
+    diffProvider: (repoPath: String) -> String = { "" },
     onDeleteTask: (taskId: String) -> Unit = {},
     isTaskIdle: (taskId: String) -> Boolean = { false },
 ) {
@@ -103,7 +105,7 @@ fun App(
                         val tasks = appState.tasks.filter { it.projectId == project.id }
                         for (task in tasks) {
                             val idle = idleTaskIds[task.id] == true
-                            entries.add(SidebarEntry.TaskItem(task.id, task.name, task.state, idle))
+                            entries.add(SidebarEntry.TaskItem(task.id, task.name, task.state, idle, task.branchName))
                         }
                     }
                     entries.add(SidebarEntry.AddProject)
@@ -122,6 +124,11 @@ fun App(
                             }
                             is SidebarEntry.TaskItem -> {
                                 val isSelected = (navigation as? NavigationTarget.TaskTerminal)?.taskId == entry.taskId
+                                val stateColor = when (entry.state) {
+                                    TaskState.Created -> Color(0xFF888888)
+                                    TaskState.Running -> Color(0xFF60CDFF)
+                                    TaskState.Completed -> Color(0xFF6CCB5F)
+                                }
                                 MenuItem(
                                     selected = isSelected,
                                     onClick = {
@@ -141,8 +148,13 @@ fun App(
                                         }
                                     },
                                     icon = {
-                                        Row {
-                                            Spacer(Modifier.width(24.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Spacer(Modifier.width(20.dp))
+                                            Box(
+                                                Modifier.size(8.dp)
+                                                    .background(stateColor, CircleShape)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
                                             Icon(Icons.Regular.WindowDevTools, contentDescription = entry.name)
                                         }
                                     },
@@ -198,6 +210,7 @@ fun App(
                                         viewModel.deleteTask(task.id)
                                     },
                                     onRemoveProject = { viewModel.removeProject(project.id) },
+                                    onFetchDiff = { diffProvider(project.repoPath) },
                                 )
                             } else {
                                 WelcomeScreen()
@@ -296,7 +309,7 @@ fun App(
 
 private sealed class SidebarEntry {
     data class ProjectItem(val projectId: String, val name: String) : SidebarEntry()
-    data class TaskItem(val taskId: String, val name: String, val state: TaskState, val idle: Boolean) : SidebarEntry()
+    data class TaskItem(val taskId: String, val name: String, val state: TaskState, val idle: Boolean, val branchName: String = "") : SidebarEntry()
     data object AddProject : SidebarEntry()
     data object SettingsItem : SidebarEntry()
 }

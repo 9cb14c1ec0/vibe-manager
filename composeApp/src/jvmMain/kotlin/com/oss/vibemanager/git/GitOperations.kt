@@ -76,6 +76,18 @@ object GitOperations {
         return runGit(repoPath, "worktree", "add", worktreePath, branchName).map { }
     }
 
+    fun getUncommittedDiff(repoPath: String): Result<String> = runCatching {
+        val unstaged = runGit(repoPath, "diff").getOrDefault("")
+        val staged = runGit(repoPath, "diff", "--cached").getOrDefault("")
+        buildString {
+            if (staged.isNotBlank()) append(staged)
+            if (unstaged.isNotBlank()) {
+                if (isNotBlank()) append("\n")
+                append(unstaged)
+            }
+        }
+    }
+
     private fun runGit(workingDir: String, vararg args: String): Result<String> = runCatching {
         val process = ProcessBuilder("git", *args)
             .directory(File(workingDir))

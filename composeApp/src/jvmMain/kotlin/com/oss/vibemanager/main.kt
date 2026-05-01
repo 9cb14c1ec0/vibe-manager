@@ -95,6 +95,9 @@ fun main() = application {
                 if (info != null) Pair(info.currentBranch, info.isClean)
                 else Pair("unknown", true)
             },
+            diffProvider = { repoPath ->
+                GitOperations.getUncommittedDiff(repoPath).getOrDefault("")
+            },
             onDeleteTask = { taskId ->
                 sessionManager.dispose(taskId)
             },
