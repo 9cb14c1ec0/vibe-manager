@@ -28,32 +28,20 @@ fun StreamingContent(
             modifier = Modifier.padding(bottom = 4.dp),
         )
 
-        // Render accumulated blocks
-        for (block in blocks) {
-            when (block) {
-                is ContentBlock.Text -> {
-                    Text(
-                        text = block.text,
-                        fontSize = 14.sp,
-                        color = FluentTheme.colors.text.text.primary,
-                        modifier = Modifier.padding(bottom = 4.dp),
+        // Group consecutive tool blocks, render others directly
+        val grouped = remember(blocks) { groupStreamingBlocks(blocks) }
+        for (group in grouped) {
+            when (group) {
+                is StreamBlockGroup.Single -> {
+                    RenderStreamBlock(group.block, blocks)
+                }
+                is StreamBlockGroup.ToolRun -> {
+                    val results = blocks.filterIsInstance<ContentBlock.ToolResult>()
+                        .associateBy { it.toolUseId }
+                    CollapsibleToolGroup(
+                        tools = group.tools,
+                        results = results,
                     )
-                }
-                is ContentBlock.Thinking -> {
-                    ThinkingBlock(text = block.text)
-                }
-                is ContentBlock.ToolUse -> {
-                    ToolCallCard(
-                        toolName = block.name,
-                        input = block.input,
-                        status = block.status,
-                        result = blocks
-                            .filterIsInstance<ContentBlock.ToolResult>()
-                            .firstOrNull { it.toolUseId == block.id },
-                    )
-                }
-                is ContentBlock.ToolResult -> {
-                    // Rendered with ToolUse above
                 }
             }
         }
@@ -92,6 +80,81 @@ fun StreamingContent(
                 fontSize = 14.sp,
                 color = FluentTheme.colors.text.text.tertiary,
             )
+        }
+    }
+}
+
+private sealed class StreamBlockGroup {
+    data class Single(val block: ContentBlock) : StreamBlockGroup()
+    data class ToolRun(val tools: List<ContentBlock.ToolUse>) : StreamBlockGroup()
+}
+
+private fun groupStreamingBlocks(blocks: List<ContentBlock>): List<StreamBlockGroup> {
+    val groups = mutableListOf<StreamBlockGroup>()
+    var currentToolRun = mutableListOf<ContentBlock.ToolUse>()
+
+    for (block in blocks) {
+        when (block) {
+            is ContentBlock.ToolUse -> {
+                currentToolRun.add(block)
+            }
+            is ContentBlock.ToolResult -> {
+                // ToolResults consumed by their matching ToolUse group
+                val matchesCurrentRun = currentToolRun.any { it.id == block.toolUseId }
+                if (!matchesCurrentRun) {
+                    if (currentToolRun.isNotEmpty()) {
+                        groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
+                        currentToolRun = mutableListOf()
+                    }
+                    // Only render standalone if no matching ToolUse
+                    val hasMatch = blocks.filterIsInstance<ContentBlock.ToolUse>()
+                        .any { it.id == block.toolUseId }
+                    if (!hasMatch) {
+                        groups.add(StreamBlockGroup.Single(block))
+                    }
+                }
+            }
+            else -> {
+                if (currentToolRun.isNotEmpty()) {
+                    groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
+                    currentToolRun = mutableListOf()
+                }
+                groups.add(StreamBlockGroup.Single(block))
+            }
+        }
+    }
+    if (currentToolRun.isNotEmpty()) {
+        groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
+    }
+    return groups
+}
+
+@Composable
+private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>) {
+    when (block) {
+        is ContentBlock.Text -> {
+            Text(
+                text = block.text,
+                fontSize = 14.sp,
+                color = FluentTheme.colors.text.text.primary,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        is ContentBlock.Thinking -> {
+            ThinkingBlock(text = block.text)
+        }
+        is ContentBlock.ToolUse -> {
+            ToolCallCard(
+                toolName = block.name,
+                input = block.input,
+                status = block.status,
+                result = allBlocks
+                    .filterIsInstance<ContentBlock.ToolResult>()
+                    .firstOrNull { it.toolUseId == block.id },
+            )
+        }
+        is ContentBlock.ToolResult -> {
+            // Rendered with ToolUse
         }
     }
 }

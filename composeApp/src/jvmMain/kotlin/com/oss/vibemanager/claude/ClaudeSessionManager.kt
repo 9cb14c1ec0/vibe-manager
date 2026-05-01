@@ -1,28 +1,94 @@
 package com.oss.vibemanager.claude
 
+import com.agentclientprotocol.client.ClientSession
+import com.agentclientprotocol.common.ClientSessionOperations
+import com.agentclientprotocol.common.Event
+import com.agentclientprotocol.common.SessionCreationParameters
+import com.agentclientprotocol.model.ContentBlock as AcpContentBlock
+import com.agentclientprotocol.model.PermissionOption
+import com.agentclientprotocol.model.PermissionOptionKind
+import com.agentclientprotocol.model.RequestPermissionOutcome
+import com.agentclientprotocol.model.RequestPermissionResponse
+import com.agentclientprotocol.model.SessionUpdate
+import com.agentclientprotocol.model.PermissionOptionId
+import com.agentclientprotocol.model.ToolCallContent
+import com.agentclientprotocol.model.ToolCallStatus
 import com.oss.vibemanager.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-class ClaudeSessionManager(private val scope: CoroutineScope) {
-    private val processManager = ClaudeProcessManager()
-    private val sessions = ConcurrentHashMap<String, ClaudeSessionState>()
+class ClaudeSessionManager(
+    private val scope: CoroutineScope,
+    private val stateDir: String,
+    private val bridgeManager: AcpBridgeManager,
+) {
+    private val sessions = ConcurrentHashMap<String, TaskSessionState>()
+    private val conversationsDir = File(stateDir, "conversations")
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
-    private class ClaudeSessionState(
+    init {
+        conversationsDir.mkdirs()
+    }
+
+    private class TaskSessionState(
         val conversationState: MutableStateFlow<ConversationState>,
+        var acpSession: ClientSession? = null,
         var readerJob: Job? = null,
+        val permissionResponders: ConcurrentHashMap<String, CompletableDeferred<RequestPermissionResponse>> = ConcurrentHashMap(),
     )
 
     fun getConversationState(taskId: String, sessionId: String): StateFlow<ConversationState> {
         return getOrCreateSession(taskId, sessionId).conversationState.asStateFlow()
     }
 
-    private fun getOrCreateSession(taskId: String, sessionId: String): ClaudeSessionState {
+    private fun getOrCreateSession(taskId: String, sessionId: String): TaskSessionState {
         return sessions.getOrPut(taskId) {
-            ClaudeSessionState(
-                conversationState = MutableStateFlow(ConversationState(sessionId = sessionId))
+            val persisted = loadConversation(taskId)
+            val initialState = if (persisted != null) {
+                ConversationState(
+                    sessionId = sessionId,
+                    model = persisted.model,
+                    messages = persisted.messages,
+                    totalCostUsd = persisted.totalCostUsd,
+                )
+            } else {
+                ConversationState(sessionId = sessionId)
+            }
+            TaskSessionState(
+                conversationState = MutableStateFlow(initialState)
             )
+        }
+    }
+
+    private fun saveConversation(taskId: String, state: ConversationState) {
+        try {
+            val persisted = PersistedConversation(
+                sessionId = state.sessionId,
+                model = state.model,
+                messages = state.messages,
+                totalCostUsd = state.totalCostUsd,
+            )
+            val file = File(conversationsDir, "$taskId.json")
+            val jsonStr = json.encodeToString(PersistedConversation.serializer(), persisted)
+            file.writeText(jsonStr)
+        } catch (e: Exception) {
+            System.err.println("Failed to save conversation $taskId: ${e.message}")
+        }
+    }
+
+    private fun loadConversation(taskId: String): PersistedConversation? {
+        return try {
+            val file = File(conversationsDir, "$taskId.json")
+            if (file.exists()) {
+                json.decodeFromString(PersistedConversation.serializer(), file.readText())
+            } else null
+        } catch (e: Exception) {
+            System.err.println("Failed to load conversation $taskId: ${e.message}")
+            null
         }
     }
 
@@ -32,6 +98,8 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
         prompt: String,
         workDir: String,
         permissionMode: String = "acceptEdits",
+        model: String = "",
+        hasExistingSession: Boolean = false,
     ) {
         val session = getOrCreateSession(taskId, sessionId)
         val state = session.conversationState
@@ -44,8 +112,6 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
             timestamp = System.currentTimeMillis(),
         )
 
-        val isResume = state.value.messages.isNotEmpty()
-
         state.update { it.copy(
             messages = it.messages + userMessage,
             status = SessionStatus.Streaming,
@@ -53,130 +119,69 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
             streamingText = "",
             streamingBlocks = emptyList(),
             error = null,
+            pendingPermission = null,
         )}
+
+        saveConversation(taskId, state.value)
 
         // Cancel any previous reader
         session.readerJob?.cancel()
 
-        // Spawn Claude process and start reading
         session.readerJob = scope.launch(Dispatchers.IO) {
             try {
-                val process = processManager.startTurn(
-                    sessionId = sessionId,
-                    prompt = prompt,
-                    workDir = workDir,
-                    isResume = isResume,
-                    permissionMode = permissionMode,
-                )
+                // Get or create ACP session
+                System.err.println("[SessionMgr] Getting ACP session for task $taskId...")
+                val acpSession = getOrCreateAcpSession(session, taskId, workDir)
+                System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}...")
 
+                // Collect streaming blocks for the current turn
                 val currentBlocks = mutableListOf<ContentBlock>()
                 var currentText = StringBuilder()
-                var model = state.value.model
 
-                ClaudeStreamParser.parseStream(process.inputStream).collect { event ->
+                // Send the prompt and collect events
+                acpSession.prompt(
+                    listOf(AcpContentBlock.Text(prompt)),
+                ).collect { event ->
+                    System.err.println("[SessionMgr] Received event: ${event::class.simpleName}")
                     when (event) {
-                        is SystemInitEvent -> {
-                            model = event.model
-                            state.update { it.copy(model = model) }
-                        }
-
-                        is AssistantMessageEvent -> {
-                            // Parse content blocks from the assistant message
-                            val blocks = mutableListOf<ContentBlock>()
-                            var latestText = ""
-                            for (block in event.message.content) {
-                                when (block) {
-                                    is TextContentBlock -> {
-                                        latestText = block.text
-                                        blocks.add(ContentBlock.Text(block.text))
-                                    }
-                                    is ThinkingContentBlock -> {
-                                        blocks.add(ContentBlock.Thinking(block.thinking))
-                                    }
-                                    is ToolUseContentBlock -> {
-                                        blocks.add(ContentBlock.ToolUse(
-                                            id = block.id,
-                                            name = block.name,
-                                            input = block.input.toString(),
-                                            status = ToolStatus.Running,
-                                        ))
-                                    }
-                                    is ToolResultContentBlock -> {
-                                        blocks.add(ContentBlock.ToolResult(
-                                            toolUseId = block.toolUseId,
-                                            content = block.content,
-                                            isError = block.isError,
-                                        ))
-                                    }
-                                }
-                            }
-
-                            // Update streaming state - show latest blocks as they come in
-                            currentBlocks.clear()
-                            currentBlocks.addAll(blocks)
-                            currentText = StringBuilder(latestText)
-
-                            state.update { it.copy(
-                                streamingText = latestText,
-                                streamingBlocks = blocks.toList(),
-                            )}
-                        }
-
-                        is UserToolResultEvent -> {
-                            // Tool results from Claude executing tools
-                            for (block in event.message.content) {
-                                if (block is ToolResultContentBlock) {
-                                    // Update the corresponding ToolUse block status
-                                    val updatedBlocks = currentBlocks.map { cb ->
-                                        if (cb is ContentBlock.ToolUse && cb.id == block.toolUseId) {
-                                            cb.copy(status = if (block.isError) ToolStatus.Error else ToolStatus.Completed)
-                                        } else cb
-                                    }.toMutableList()
-                                    // Add the result block
-                                    updatedBlocks.add(ContentBlock.ToolResult(
-                                        toolUseId = block.toolUseId,
-                                        content = block.content,
-                                        isError = block.isError,
-                                    ))
-                                    currentBlocks.clear()
-                                    currentBlocks.addAll(updatedBlocks)
-
-                                    state.update { it.copy(
-                                        streamingBlocks = updatedBlocks.toList(),
-                                    )}
-                                }
-                            }
-                        }
-
-                        is ResultEvent -> {
-                            // Turn complete - finalize the assistant message
-                            val assistantMessage = ConversationMessage(
-                                id = "assistant-${System.currentTimeMillis()}",
-                                role = MessageRole.Assistant,
-                                blocks = currentBlocks.toList(),
-                                timestamp = System.currentTimeMillis(),
+                        is Event.SessionUpdateEvent -> {
+                            System.err.println("[SessionMgr]   Update type: ${event.update::class.simpleName}")
+                            handleSessionUpdate(
+                                event.update, session, taskId,
+                                currentBlocks, currentText,
                             )
-
-                            state.update { it.copy(
-                                messages = it.messages + assistantMessage,
-                                status = if (event.isError) SessionStatus.Error else SessionStatus.Idle,
-                                isStreaming = false,
-                                streamingText = "",
-                                streamingBlocks = emptyList(),
-                                totalCostUsd = it.totalCostUsd + event.totalCostUsd,
-                                error = if (event.isError) event.result else null,
-                            )}
                         }
-
-                        is RateLimitEvent -> {
-                            // Could show rate limit info in UI - for now just log
+                        is Event.PromptResponseEvent -> {
+                            // Turn complete — finalize assistant message
+                            if (currentBlocks.isNotEmpty()) {
+                                val assistantMessage = ConversationMessage(
+                                    id = "assistant-${System.currentTimeMillis()}",
+                                    role = MessageRole.Assistant,
+                                    blocks = currentBlocks.toList(),
+                                    timestamp = System.currentTimeMillis(),
+                                )
+                                state.update { it.copy(
+                                    messages = it.messages + assistantMessage,
+                                    status = SessionStatus.Idle,
+                                    isStreaming = false,
+                                    streamingText = "",
+                                    streamingBlocks = emptyList(),
+                                )}
+                            } else {
+                                state.update { it.copy(
+                                    status = SessionStatus.Idle,
+                                    isStreaming = false,
+                                    streamingText = "",
+                                    streamingBlocks = emptyList(),
+                                )}
+                            }
+                            saveConversation(taskId, state.value)
                         }
                     }
                 }
 
-                // If we get here without a ResultEvent, the process ended unexpectedly
+                // If stream ended without PromptResponseEvent, clean up
                 if (state.value.isStreaming) {
-                    // Finalize whatever we have
                     if (currentBlocks.isNotEmpty()) {
                         val assistantMessage = ConversationMessage(
                             id = "assistant-${System.currentTimeMillis()}",
@@ -195,15 +200,17 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
                         state.update { it.copy(
                             status = SessionStatus.Idle,
                             isStreaming = false,
-                            streamingText = "",
-                            streamingBlocks = emptyList(),
                         )}
                     }
+                    saveConversation(taskId, state.value)
                 }
 
             } catch (e: CancellationException) {
-                throw e // don't catch cancellation
+                System.err.println("[SessionMgr] Task $taskId cancelled")
+                throw e
             } catch (e: Exception) {
+                System.err.println("[SessionMgr] Task $taskId ERROR: ${e::class.simpleName}: ${e.message}")
+                e.printStackTrace(System.err)
                 state.update { it.copy(
                     status = SessionStatus.Error,
                     isStreaming = false,
@@ -213,14 +220,228 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
         }
     }
 
+    private suspend fun getOrCreateAcpSession(
+        session: TaskSessionState,
+        taskId: String,
+        workDir: String,
+    ): ClientSession {
+        session.acpSession?.let {
+            System.err.println("[SessionMgr] Reusing existing ACP session for task $taskId")
+            return it
+        }
+
+        System.err.println("[SessionMgr] Creating new ACP session for task $taskId, workDir=$workDir")
+        val client = bridgeManager.getClient()
+        System.err.println("[SessionMgr] Got ACP client, creating session...")
+        val params = SessionCreationParameters(
+            cwd = workDir,
+            mcpServers = emptyList(),
+        )
+
+        val acpSession = client.newSession(params) { sessionId, sessionResponse ->
+            System.err.println("[SessionMgr] Session created callback: sessionId=$sessionId")
+            createClientOperations(session, taskId)
+        }
+        System.err.println("[SessionMgr] ACP session created successfully")
+
+        session.acpSession = acpSession
+        return acpSession
+    }
+
+    private fun createClientOperations(
+        session: TaskSessionState,
+        taskId: String,
+    ): ClientSessionOperations {
+        return VibeManagerClientOperations(
+            onPermissionRequest = { toolCall, permissions ->
+                handlePermissionRequest(session, taskId, toolCall, permissions)
+            }
+        )
+    }
+
+    private suspend fun handlePermissionRequest(
+        session: TaskSessionState,
+        taskId: String,
+        toolCall: SessionUpdate.ToolCallUpdate,
+        permissions: List<PermissionOption>,
+    ): RequestPermissionResponse {
+        val requestId = "perm-${System.currentTimeMillis()}"
+
+        // Map ACP permission options to our model
+        val choices = permissions.map { opt ->
+            PermissionChoice(
+                id = opt.optionId.value,
+                name = opt.name,
+                kind = when (opt.kind) {
+                    PermissionOptionKind.ALLOW_ONCE -> "allow_once"
+                    PermissionOptionKind.ALLOW_ALWAYS -> "allow_always"
+                    PermissionOptionKind.REJECT_ONCE -> "reject_once"
+                    PermissionOptionKind.REJECT_ALWAYS -> "reject_always"
+                },
+            )
+        }
+
+        // Build input summary from tool call content
+        val inputSummary = toolCall.content
+            ?.filterIsInstance<ToolCallContent.Content>()
+            ?.mapNotNull { (it.content as? AcpContentBlock.Text)?.text }
+            ?.joinToString("\n")
+            ?: ""
+
+        val pending = PendingPermission(
+            requestId = requestId,
+            toolName = toolCall.title ?: toolCall.toolCallId.value,
+            toolTitle = toolCall.title ?: "",
+            inputSummary = inputSummary,
+            options = choices,
+        )
+
+        // Create a deferred for the response
+        val deferred = CompletableDeferred<RequestPermissionResponse>()
+        session.permissionResponders[requestId] = deferred
+
+        // Update UI state with pending permission
+        session.conversationState.update { it.copy(pendingPermission = pending) }
+
+        // Wait for user response from UI
+        return try {
+            deferred.await()
+        } finally {
+            session.permissionResponders.remove(requestId)
+            session.conversationState.update { it.copy(pendingPermission = null) }
+        }
+    }
+
+    /**
+     * Called from the UI when the user approves or denies a permission request.
+     */
+    fun respondToPermission(taskId: String, requestId: String, optionId: String) {
+        val session = sessions[taskId] ?: return
+        val deferred = session.permissionResponders[requestId] ?: return
+        deferred.complete(
+            RequestPermissionResponse(
+                outcome = RequestPermissionOutcome.Selected(PermissionOptionId(optionId)),
+                _meta = null,
+            )
+        )
+    }
+
+    private fun handleSessionUpdate(
+        update: SessionUpdate,
+        session: TaskSessionState,
+        taskId: String,
+        currentBlocks: MutableList<ContentBlock>,
+        currentText: StringBuilder,
+    ) {
+        val state = session.conversationState
+        when (update) {
+            is SessionUpdate.AgentMessageChunk -> {
+                val block = update.content
+                if (block is AcpContentBlock.Text) {
+                    currentText.append(block.text)
+                    // Merge consecutive text blocks
+                    val lastBlock = currentBlocks.lastOrNull()
+                    if (lastBlock is ContentBlock.Text) {
+                        currentBlocks[currentBlocks.lastIndex] =
+                            ContentBlock.Text(lastBlock.text + block.text)
+                    } else {
+                        currentBlocks.add(ContentBlock.Text(block.text))
+                    }
+                }
+                state.update { it.copy(
+                    streamingText = currentText.toString(),
+                    streamingBlocks = currentBlocks.toList(),
+                )}
+            }
+
+            is SessionUpdate.AgentThoughtChunk -> {
+                val block = update.content
+                if (block is AcpContentBlock.Text) {
+                    val lastBlock = currentBlocks.lastOrNull()
+                    if (lastBlock is ContentBlock.Thinking) {
+                        currentBlocks[currentBlocks.lastIndex] =
+                            ContentBlock.Thinking(lastBlock.text + block.text)
+                    } else {
+                        currentBlocks.add(ContentBlock.Thinking(block.text))
+                    }
+                }
+                state.update { it.copy(streamingBlocks = currentBlocks.toList()) }
+            }
+
+            is SessionUpdate.ToolCallUpdate -> {
+                val toolId = update.toolCallId.value
+                val status = when (update.status) {
+                    ToolCallStatus.COMPLETED -> ToolStatus.Completed
+                    ToolCallStatus.FAILED -> ToolStatus.Error
+                    else -> ToolStatus.Running
+                }
+                val toolContent = update.content
+                    ?.filterIsInstance<ToolCallContent.Content>()
+                    ?.mapNotNull { (it.content as? AcpContentBlock.Text)?.text }
+                    ?.joinToString("\n")
+                    ?: ""
+
+                // Check if we already have this tool call
+                val existingIdx = currentBlocks.indexOfFirst {
+                    it is ContentBlock.ToolUse && it.id == toolId
+                }
+                if (existingIdx >= 0) {
+                    // Update existing
+                    val existing = currentBlocks[existingIdx] as ContentBlock.ToolUse
+                    currentBlocks[existingIdx] = existing.copy(status = status)
+                    // Add/update result if completed
+                    if (status == ToolStatus.Completed || status == ToolStatus.Error) {
+                        val resultIdx = currentBlocks.indexOfFirst {
+                            it is ContentBlock.ToolResult && it.toolUseId == toolId
+                        }
+                        val result = ContentBlock.ToolResult(
+                            toolUseId = toolId,
+                            content = toolContent,
+                            isError = status == ToolStatus.Error,
+                        )
+                        if (resultIdx >= 0) {
+                            currentBlocks[resultIdx] = result
+                        } else {
+                            currentBlocks.add(result)
+                        }
+                    }
+                } else {
+                    // New tool call
+                    currentBlocks.add(ContentBlock.ToolUse(
+                        id = toolId,
+                        name = update.title ?: "Tool",
+                        input = toolContent,
+                        status = status,
+                    ))
+                }
+                state.update { it.copy(streamingBlocks = currentBlocks.toList()) }
+            }
+
+            is SessionUpdate.UsageUpdate -> {
+                val cost = update.cost?.amount ?: 0.0
+                if (cost > 0) {
+                    state.update { it.copy(totalCostUsd = it.totalCostUsd + cost) }
+                }
+            }
+
+            else -> {
+                // Ignore other update types for now
+            }
+        }
+    }
+
     fun stopGeneration(taskId: String) {
         val session = sessions[taskId] ?: return
         session.readerJob?.cancel()
-        val sessionId = session.conversationState.value.sessionId
-        processManager.killProcess(sessionId)
+        scope.launch {
+            try {
+                session.acpSession?.cancel()
+            } catch (_: Exception) {}
+        }
         session.conversationState.update { it.copy(
             status = SessionStatus.Idle,
             isStreaming = false,
+            pendingPermission = null,
         )}
     }
 
@@ -229,14 +450,37 @@ class ClaudeSessionManager(private val scope: CoroutineScope) {
         return session.conversationState.value.status == SessionStatus.Idle
     }
 
+    /**
+     * Dispose a task's session AND delete its persisted conversation.
+     * Use this when the user explicitly deletes a task.
+     */
     fun dispose(taskId: String) {
-        val session = sessions.remove(taskId) ?: return
-        session.readerJob?.cancel()
-        processManager.killProcess(session.conversationState.value.sessionId)
+        shutdown(taskId)
+        try {
+            File(conversationsDir, "$taskId.json").delete()
+        } catch (_: Exception) {}
     }
 
+    /**
+     * Shut down a task's session but keep the persisted conversation file.
+     */
+    private fun shutdown(taskId: String) {
+        val session = sessions.remove(taskId) ?: return
+        session.readerJob?.cancel()
+        scope.launch {
+            try {
+                session.acpSession?.close(null)
+            } catch (_: Exception) {}
+        }
+    }
+
+    /**
+     * Shut down all sessions on app exit without deleting conversation files.
+     */
     fun disposeAll() {
-        sessions.keys.toList().forEach { dispose(it) }
-        processManager.disposeAll()
+        sessions.keys.toList().forEach { shutdown(it) }
+        scope.launch {
+            bridgeManager.shutdown()
+        }
     }
 }

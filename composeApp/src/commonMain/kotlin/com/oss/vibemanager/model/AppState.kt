@@ -7,4 +7,5 @@ data class AppState(
     val projects: List<Project> = emptyList(),
     val tasks: List<Task> = emptyList(),
     val permissionMode: String = "acceptEdits",
+    val model: String = "claude-opus-4-7",
 )

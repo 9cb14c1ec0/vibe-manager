@@ -67,6 +67,14 @@ data class RateLimitInfo(
     @SerialName("resetsAt") val resetsAt: Long? = null,
 )
 
+// --- Permission request ---
+
+data class PermissionRequest(
+    val requestId: String,
+    val toolName: String,
+    val input: JsonObject,
+)
+
 // --- Events ---
 
 sealed interface ClaudeEvent {
@@ -109,6 +117,23 @@ data class ResultEvent(
     val usage: UsageInfo? = null,
 ) : ClaudeEvent
 
+/** Permission request from the CLI (requires --permission-prompt-tool stdio). */
+data class ControlRequestEvent(
+    override val sessionId: String?,
+    val requestId: String,
+    val subtype: String,
+    val toolName: String,
+    val input: JsonObject,
+) : ClaudeEvent
+
+/** Response to a control_request we sent (e.g. initialize, set_model). */
+data class ControlResponseEvent(
+    override val sessionId: String?,
+    val requestId: String,
+    val subtype: String,
+    val response: JsonObject?,
+) : ClaudeEvent
+
 // --- Parser ---
 
 object ClaudeEventParser {
@@ -129,6 +154,8 @@ object ClaudeEventParser {
                 "assistant" -> parseAssistantEvent(obj)
                 "user" -> parseUserEvent(obj)
                 "result" -> parseResultEvent(obj)
+                "control_request" -> parseControlRequest(obj)
+                "control_response" -> parseControlResponse(obj)
                 else -> null
             }
         } catch (_: Exception) {
@@ -148,7 +175,6 @@ object ClaudeEventParser {
                 try {
                     el.jsonPrimitive.contentOrNull
                 } catch (_: Exception) {
-                    // tools may be objects; extract name if present
                     try {
                         el.jsonObject["name"]?.jsonPrimitive?.contentOrNull
                     } catch (_: Exception) {
@@ -228,6 +254,44 @@ object ClaudeEventParser {
         )
     }
 
+    private fun parseControlRequest(obj: JsonObject): ControlRequestEvent {
+        val requestId = obj["request_id"]?.jsonPrimitive?.contentOrNull ?: ""
+        val request = obj["request"]?.jsonObject
+        val subtype = request?.get("subtype")?.jsonPrimitive?.contentOrNull ?: ""
+        val toolName = request?.get("tool_name")?.jsonPrimitive?.contentOrNull ?: ""
+        val input = try {
+            request?.get("input")?.jsonObject ?: JsonObject(emptyMap())
+        } catch (_: Exception) {
+            JsonObject(emptyMap())
+        }
+        val sessionId = obj["session_id"]?.jsonPrimitive?.contentOrNull
+        return ControlRequestEvent(
+            sessionId = sessionId,
+            requestId = requestId,
+            subtype = subtype,
+            toolName = toolName,
+            input = input,
+        )
+    }
+
+    private fun parseControlResponse(obj: JsonObject): ControlResponseEvent {
+        val responseObj = obj["response"]?.jsonObject
+        val requestId = responseObj?.get("request_id")?.jsonPrimitive?.contentOrNull ?: ""
+        val subtype = responseObj?.get("subtype")?.jsonPrimitive?.contentOrNull ?: ""
+        val inner = try {
+            responseObj?.get("response")?.jsonObject
+        } catch (_: Exception) {
+            null
+        }
+        val sessionId = obj["session_id"]?.jsonPrimitive?.contentOrNull
+        return ControlResponseEvent(
+            sessionId = sessionId,
+            requestId = requestId,
+            subtype = subtype,
+            response = inner,
+        )
+    }
+
     private fun parseMessage(msgObj: JsonObject?): ClaudeMessage {
         if (msgObj == null) return ClaudeMessage(role = "unknown", content = emptyList())
         val role = msgObj["role"]?.jsonPrimitive?.contentOrNull ?: "unknown"
@@ -270,7 +334,6 @@ object ClaudeEventParser {
                 val content = try {
                     block["content"]?.jsonPrimitive?.contentOrNull ?: ""
                 } catch (_: Exception) {
-                    // content might be a complex structure; serialize back to string
                     try {
                         block["content"]?.toString() ?: ""
                     } catch (_: Exception) {

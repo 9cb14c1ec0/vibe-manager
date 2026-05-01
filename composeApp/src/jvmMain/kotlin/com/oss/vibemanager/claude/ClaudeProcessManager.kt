@@ -16,6 +16,7 @@ class ClaudeProcessManager {
         workDir: String,
         isResume: Boolean,
         permissionMode: String = "acceptEdits",
+        model: String = "",
     ): Process {
         // Kill any existing process for this session
         killProcess(sessionId)
@@ -36,6 +37,10 @@ class ClaudeProcessManager {
             }
             add("--permission-mode")
             add(permissionMode)
+            if (model.isNotEmpty()) {
+                add("--model")
+                add(model)
+            }
             add(prompt)
         }
 

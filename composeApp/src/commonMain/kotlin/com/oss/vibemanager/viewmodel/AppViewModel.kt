@@ -213,6 +213,11 @@ class AppViewModel(
         save()
     }
 
+    fun setModel(model: String) {
+        _appState.update { it.copy(model = model) }
+        save()
+    }
+
     private fun save() {
         repository.save(_appState.value)
     }

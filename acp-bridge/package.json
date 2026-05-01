@@ -1,0 +1,9 @@
+{
+  "name": "vibe-manager-acp-bridge",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@agentclientprotocol/claude-agent-acp": "0.31.4"
+  }
+}

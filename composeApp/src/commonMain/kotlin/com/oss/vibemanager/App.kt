@@ -236,38 +236,45 @@ fun App(
 
     if (showSettings) {
         val currentPermissionMode = appState.permissionMode
+        val currentModel = appState.model
         ContentDialog(
             title = "Settings",
             visible = true,
             content = {
                 Column {
-                    Text("Permission Mode", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    Button(
-                        onClick = {
-                            viewModel.setPermissionMode("acceptEdits")
-                            showSettings = false
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    ) {
-                        Text(if (currentPermissionMode == "acceptEdits") "Accept Edits (current)" else "Accept Edits")
+                    // Model section
+                    Text("Default Model", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    for ((id, label) in listOf(
+                        "claude-sonnet-4-5" to "Claude Sonnet 4.5",
+                        "claude-sonnet-4-6" to "Claude Sonnet 4.6",
+                        "claude-sonnet-4-7" to "Claude Sonnet 4.7",
+                        "claude-opus-4-5" to "Claude Opus 4.5",
+                        "claude-opus-4-6" to "Claude Opus 4.6",
+                        "claude-opus-4-7" to "Claude Opus 4.7",
+                    )) {
+                        Button(
+                            onClick = { viewModel.setModel(id) },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        ) {
+                            Text(if (currentModel == id) "$label (current)" else label)
+                        }
                     }
-                    Button(
-                        onClick = {
-                            viewModel.setPermissionMode("auto")
-                            showSettings = false
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                    ) {
-                        Text(if (currentPermissionMode == "auto") "Auto (current)" else "Auto")
-                    }
-                    Button(
-                        onClick = {
-                            viewModel.setPermissionMode("plan")
-                            showSettings = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(if (currentPermissionMode == "plan") "Plan (current)" else "Plan")
+
+                    Spacer(Modifier.padding(top = 12.dp))
+
+                    // Mode section
+                    Text("Default Mode", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    for ((id, label) in listOf(
+                        "plan" to "Plan (read-only)",
+                        "acceptEdits" to "Build (accept edits)",
+                        "auto" to "Full Auto (accept all)",
+                    )) {
+                        Button(
+                            onClick = { viewModel.setPermissionMode(id) },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        ) {
+                            Text(if (currentPermissionMode == id) "$label (current)" else label)
+                        }
                     }
                 }
             },
