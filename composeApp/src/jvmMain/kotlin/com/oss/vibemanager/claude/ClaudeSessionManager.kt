@@ -11,6 +11,8 @@ import com.agentclientprotocol.model.RequestPermissionOutcome
 import com.agentclientprotocol.model.RequestPermissionResponse
 import com.agentclientprotocol.model.SessionUpdate
 import com.agentclientprotocol.model.PermissionOptionId
+import com.agentclientprotocol.model.ModelId
+import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.oss.vibemanager.model.*
@@ -112,8 +114,12 @@ class ClaudeSessionManager(
             timestamp = System.currentTimeMillis(),
         )
 
+        // Store the selected model on conversation state
+        val effectiveModel = model.ifEmpty { state.value.model }
+
         state.update { it.copy(
             messages = it.messages + userMessage,
+            model = effectiveModel,
             status = SessionStatus.Streaming,
             isStreaming = true,
             streamingText = "",
@@ -131,7 +137,25 @@ class ClaudeSessionManager(
             try {
                 // Get or create ACP session
                 System.err.println("[SessionMgr] Getting ACP session for task $taskId...")
+                val isNewSession = session.acpSession == null
                 val acpSession = getOrCreateAcpSession(session, taskId, workDir)
+
+                // Apply model and permission mode after session creation or when changed
+                if (effectiveModel.isNotEmpty()) {
+                    try {
+                        System.err.println("[SessionMgr] Setting model: $effectiveModel")
+                        acpSession.setModel(ModelId(effectiveModel))
+                    } catch (e: Exception) {
+                        System.err.println("[SessionMgr] Failed to set model: ${e.message}")
+                    }
+                }
+                try {
+                    System.err.println("[SessionMgr] Setting permission mode: $permissionMode")
+                    acpSession.setMode(SessionModeId(permissionMode))
+                } catch (e: Exception) {
+                    System.err.println("[SessionMgr] Failed to set mode: ${e.message}")
+                }
+
                 System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}...")
 
                 // Collect streaming blocks for the current turn
