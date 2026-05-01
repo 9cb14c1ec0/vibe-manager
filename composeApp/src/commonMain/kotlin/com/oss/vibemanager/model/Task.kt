@@ -16,4 +16,5 @@ data class Task(
     val createdAt: Long,
     val claudeSessionId: String = "",
     val claudeSessionStarted: Boolean = false,
+    val totalCostUsd: Double = 0.0,
 )

@@ -1,12 +1,10 @@
 package com.oss.vibemanager
 
-import com.oss.vibemanager.model.AppState
-import com.oss.vibemanager.model.Project
-import com.oss.vibemanager.model.Task
-import com.oss.vibemanager.model.TaskState
+import com.oss.vibemanager.model.*
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class ModelSerializationTest {
 
@@ -39,6 +37,40 @@ class ModelSerializationTest {
         val encoded = json.encodeToString(Task.serializer(), task)
         val decoded = json.decodeFromString(Task.serializer(), encoded)
         assertEquals(task, decoded)
+    }
+
+    @Test
+    fun conversationRoundTrips() {
+        val conversation = PersistedConversation(
+            sessionId = "session-123",
+            model = "claude-opus-4-7",
+            messages = listOf(
+                ConversationMessage(
+                    id = "user-1",
+                    role = MessageRole.User,
+                    blocks = listOf(ContentBlock.Text("Hello")),
+                    timestamp = 1700000000000L,
+                ),
+                ConversationMessage(
+                    id = "assistant-1",
+                    role = MessageRole.Assistant,
+                    blocks = listOf(
+                        ContentBlock.Thinking("Let me think..."),
+                        ContentBlock.Text("Hi there!"),
+                        ContentBlock.ToolUse("tool-1", "Read", """{"file_path":"test.kt"}""", ToolStatus.Completed),
+                        ContentBlock.ToolResult("tool-1", "file contents here", false),
+                    ),
+                    timestamp = 1700000001000L,
+                ),
+            ),
+            totalCostUsd = 0.05,
+        )
+        val encoded = json.encodeToString(PersistedConversation.serializer(), conversation)
+        println("Serialized conversation:\n$encoded")
+        val decoded = json.decodeFromString(PersistedConversation.serializer(), encoded)
+        assertEquals(conversation, decoded)
+        assertTrue(encoded.contains("Hello"))
+        assertTrue(encoded.contains("claude-opus-4-7"))
     }
 
     @Test

@@ -2,7 +2,6 @@ package com.oss.vibemanager.viewmodel
 
 import com.oss.vibemanager.model.AppState
 import com.oss.vibemanager.model.Project
-import com.oss.vibemanager.model.ShellType
 import com.oss.vibemanager.model.Task
 import com.oss.vibemanager.model.TaskState
 import com.oss.vibemanager.persistence.AppStateRepository
@@ -22,7 +21,6 @@ interface PlatformOperations {
     fun deleteBranch(repoPath: String, branchName: String): Result<Unit>
     fun getWorktreeBasePath(repoPath: String): String
     fun fileExists(path: String): Boolean
-    fun findGitBashPath(): String?
     fun listBranches(repoPath: String): Result<List<String>>
     fun listRemoteBranches(repoPath: String): Result<List<String>>
     fun checkoutWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit>
@@ -46,9 +44,6 @@ class AppViewModel(
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
-
-    val gitBashPath: String? = platform.findGitBashPath()
-    val gitBashAvailable: Boolean = gitBashPath != null
 
     fun navigateTo(target: NavigationTarget) {
         _navigation.value = target
@@ -213,8 +208,13 @@ class AppViewModel(
         return _appState.value.tasks.filter { it.projectId == projectId }
     }
 
-    fun setShellType(shellType: ShellType) {
-        _appState.update { it.copy(shellType = shellType) }
+    fun setPermissionMode(mode: String) {
+        _appState.update { it.copy(permissionMode = mode) }
+        save()
+    }
+
+    fun setModel(model: String) {
+        _appState.update { it.copy(model = model) }
         save()
     }
 

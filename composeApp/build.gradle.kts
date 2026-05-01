@@ -31,9 +31,8 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.pty4j)
-            implementation(libs.jediterm.core)
-            implementation(libs.jediterm.ui)
+            implementation("com.agentclientprotocol:acp:0.20.1")
+            implementation("org.slf4j:slf4j-simple:2.0.16")
         }
     }
 }
