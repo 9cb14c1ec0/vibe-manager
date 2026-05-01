@@ -42,7 +42,6 @@ import io.github.composefluent.icons.regular.Add
 import io.github.composefluent.icons.regular.Folder
 import io.github.composefluent.icons.regular.Settings
 import io.github.composefluent.icons.regular.WindowDevTools
-import com.oss.vibemanager.model.ShellType
 import com.oss.vibemanager.model.TaskState
 import com.oss.vibemanager.ui.dialogs.AddProjectDialog
 import com.oss.vibemanager.ui.screens.ProjectDetailScreen
@@ -55,7 +54,7 @@ import kotlinx.coroutines.delay
 fun App(
     viewModel: AppViewModel,
     onBrowseDirectory: () -> String?,
-    terminalContent: @Composable (taskId: String, isActive: Boolean) -> Unit,
+    chatContent: @Composable (taskId: String, isActive: Boolean) -> Unit,
     gitInfoProvider: (repoPath: String) -> Pair<String, Boolean>,
     onDeleteTask: (taskId: String) -> Unit = {},
     isTaskIdle: (taskId: String) -> Boolean = { false },
@@ -209,13 +208,13 @@ fun App(
                         }
                     }
 
-                    // Render all opened terminals persistently inside content area
+                    // Render all opened chat sessions persistently inside content area
                     for (taskId in openedTaskIds) {
                         key(taskId) {
                             val isActive = taskId == activeTerminalId && !anyDialogOpen
                             val mod = if (isActive) Modifier.fillMaxSize() else Modifier.size(0.dp)
                             Box(modifier = mod) {
-                                terminalContent(taskId, isActive)
+                                chatContent(taskId, isActive)
                             }
                         }
                     }
@@ -236,39 +235,39 @@ fun App(
     }
 
     if (showSettings) {
-        val currentShell = appState.shellType
-        val gitBashAvailable = viewModel.gitBashAvailable
+        val currentPermissionMode = appState.permissionMode
         ContentDialog(
             title = "Settings",
             visible = true,
             content = {
                 Column {
-                    Text("Terminal Shell", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    Text("Permission Mode", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
                     Button(
                         onClick = {
-                            viewModel.setShellType(ShellType.Cmd)
+                            viewModel.setPermissionMode("acceptEdits")
                             showSettings = false
                         },
                         modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                     ) {
-                        Text(if (currentShell == ShellType.Cmd) "cmd.exe (current)" else "cmd.exe")
+                        Text(if (currentPermissionMode == "acceptEdits") "Accept Edits (current)" else "Accept Edits")
                     }
-                    if (gitBashAvailable) {
-                        Button(
-                            onClick = {
-                                viewModel.setShellType(ShellType.GitBash)
-                                showSettings = false
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(if (currentShell == ShellType.GitBash) "Git Bash (current)" else "Git Bash")
-                        }
-                    } else {
-                        Text(
-                            "Git Bash not detected",
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
+                    Button(
+                        onClick = {
+                            viewModel.setPermissionMode("auto")
+                            showSettings = false
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    ) {
+                        Text(if (currentPermissionMode == "auto") "Auto (current)" else "Auto")
+                    }
+                    Button(
+                        onClick = {
+                            viewModel.setPermissionMode("plan")
+                            showSettings = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (currentPermissionMode == "plan") "Plan (current)" else "Plan")
                     }
                 }
             },

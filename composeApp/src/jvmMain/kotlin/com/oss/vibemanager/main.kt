@@ -6,15 +6,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import com.oss.vibemanager.claude.ClaudeSessionManager
 import com.oss.vibemanager.git.GitOperations
 import com.oss.vibemanager.git.JvmPlatformOperations
 import com.oss.vibemanager.persistence.AppStateRepository
 import com.oss.vibemanager.persistence.JvmFileOperations
 import com.oss.vibemanager.platform.chooseDirectory
-import com.oss.vibemanager.terminal.TerminalSessionManager
-import com.oss.vibemanager.ui.screens.TaskTerminalScreen
+import com.oss.vibemanager.ui.screens.TaskChatScreen
 import com.oss.vibemanager.viewmodel.AppViewModel
 import com.oss.vibemanager.viewmodel.NavigationTarget
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 fun main() = application {
     val stateDir = System.getProperty("user.home") + "/.vibemanager"
@@ -22,7 +25,8 @@ fun main() = application {
     val repository = AppStateRepository(fileOps, stateDir)
     val platformOps = JvmPlatformOperations()
     val viewModel = AppViewModel(repository, platformOps)
-    val sessionManager = TerminalSessionManager()
+    val sessionScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    val sessionManager = ClaudeSessionManager(sessionScope)
 
     Window(
         onCloseRequest = {
@@ -35,25 +39,35 @@ fun main() = application {
         App(
             viewModel = viewModel,
             onBrowseDirectory = { chooseDirectory() },
-            terminalContent = { taskId, isActive ->
+            chatContent = { taskId, isActive ->
                 val appState by viewModel.appState.collectAsState()
                 val task = appState.tasks.find { it.id == taskId }
                 if (task != null) {
-                    TaskTerminalScreen(
-                        task = task,
-                        sessionManager = sessionManager,
+                    val conversationState by sessionManager
+                        .getConversationState(task.id, task.claudeSessionId)
+                        .collectAsState()
+
+                    TaskChatScreen(
+                        taskName = task.name,
+                        conversationState = conversationState,
                         onBack = {
                             viewModel.navigateTo(NavigationTarget.ProjectDetail(task.projectId))
                         },
-                        onProcessExit = {
-                            // Don't auto-complete — user can reopen to resume
+                        onSendMessage = { prompt ->
+                            if (!task.claudeSessionStarted) {
+                                viewModel.markClaudeSessionStarted(task.id)
+                            }
+                            sessionManager.sendMessage(
+                                taskId = task.id,
+                                sessionId = task.claudeSessionId,
+                                prompt = prompt,
+                                workDir = task.worktreePath,
+                                permissionMode = appState.permissionMode,
+                            )
                         },
-                        onClaudeSessionStarted = {
-                            viewModel.markClaudeSessionStarted(task.id)
+                        onStopGeneration = {
+                            sessionManager.stopGeneration(task.id)
                         },
-                        shellType = appState.shellType,
-                        gitBashPath = viewModel.gitBashPath,
-                        isActive = isActive,
                     )
                 }
             },

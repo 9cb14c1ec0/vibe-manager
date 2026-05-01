@@ -31,9 +31,6 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
-            implementation(libs.pty4j)
-            implementation(libs.jediterm.core)
-            implementation(libs.jediterm.ui)
         }
     }
 }
