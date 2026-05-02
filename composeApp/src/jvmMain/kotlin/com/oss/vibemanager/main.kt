@@ -1,7 +1,11 @@
 package com.oss.vibemanager
 
+import ai.rever.bossterm.compose.TabbedTerminal
+import ai.rever.bossterm.compose.rememberTabbedTerminalState
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -95,6 +99,17 @@ fun main() = application {
                         },
                         diffPanelWidth = appState.diffPanelWidth,
                         onDiffPanelWidthChanged = viewModel::setDiffPanelWidth,
+                        terminalPanelHeight = appState.terminalPanelHeight,
+                        onTerminalPanelHeightChanged = viewModel::setTerminalPanelHeight,
+                        terminalContent = { onExit ->
+                            val terminalState = rememberTabbedTerminalState()
+                            TabbedTerminal(
+                                state = terminalState,
+                                onExit = onExit,
+                                workingDirectory = task.worktreePath,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        },
                     )
                 }
             },

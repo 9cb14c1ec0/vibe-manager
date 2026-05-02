@@ -36,6 +36,8 @@ kotlin {
             implementation(libs.kotlinx.coroutinesSwing)
             implementation("com.agentclientprotocol:acp:0.20.1")
             implementation("org.slf4j:slf4j-simple:2.0.16")
+            implementation("com.risaboss:bossterm-compose:1.0.92")
+            implementation("com.risaboss:bossterm-core:1.0.92")
         }
     }
 }
