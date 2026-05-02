@@ -121,19 +121,23 @@ private fun findBridgePath(): String {
     // 1. Check ~/.vibemanager/acp-bridge (primary location)
     candidates.add(File(System.getProperty("user.home"), ".vibemanager/$binName"))
 
-    // 2. Check next to the running JAR (for distribution)
+    // 2. Resolve relative to the running code's location (JAR or classes dir).
+    //    Walks up parents looking for either a sibling binary (distribution)
+    //    or acp-bridge/dist/<binName> (development mode), so cwd doesn't matter.
     try {
-        val jarUri = ClaudeSessionManager::class.java.protectionDomain.codeSource?.location?.toURI()
-        if (jarUri != null) {
-            candidates.add(File(File(jarUri).parentFile, binName))
+        val codeUri = ClaudeSessionManager::class.java.protectionDomain.codeSource?.location?.toURI()
+        if (codeUri != null) {
+            var dir: File? = File(codeUri).let { if (it.isDirectory) it else it.parentFile }
+            while (dir != null) {
+                candidates.add(File(dir, binName))
+                candidates.add(File(dir, "acp-bridge/dist/$binName"))
+                dir = dir.parentFile
+            }
         }
     } catch (_: Exception) {}
 
-    // 3. Check relative to working directory (development mode)
-    candidates.add(File("acp-bridge/dist/$binName"))
-
     for (candidate in candidates) {
-        if (candidate.exists()) {
+        if (candidate.isFile && candidate.canExecute()) {
             System.err.println("[VibeManager] Found ACP bridge at: ${candidate.absolutePath}")
             return candidate.absolutePath
         }
