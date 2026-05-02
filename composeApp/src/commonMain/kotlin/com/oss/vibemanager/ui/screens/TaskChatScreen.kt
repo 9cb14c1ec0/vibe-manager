@@ -102,6 +102,22 @@ fun TaskChatScreen(
     var diffWidth by remember { mutableStateOf(diffPanelWidth.dp.coerceIn(DiffPanelMinWidth, DiffPanelMaxWidth)) }
     var terminalHeight by remember { mutableStateOf(terminalPanelHeight.dp.coerceIn(TerminalPanelMinHeight, TerminalPanelMaxHeight)) }
     val density = LocalDensity.current
+    val editWriteCompletedCount = remember(conversationState.streamingBlocks, conversationState.messages) {
+        val fileModifyingTools = setOf("Edit", "Write")
+        val streamingCount = conversationState.streamingBlocks.count { block ->
+            block is ContentBlock.ToolUse &&
+                block.name in fileModifyingTools &&
+                block.status == ToolStatus.Completed
+        }
+        val messagesCount = conversationState.messages.sumOf { msg ->
+            msg.blocks.count { block ->
+                block is ContentBlock.ToolUse &&
+                    block.name in fileModifyingTools &&
+                    block.status == ToolStatus.Completed
+            }
+        }
+        streamingCount + messagesCount
+    }
     val activePlanInput: String? = remember(conversationState.streamingBlocks, conversationState.messages) {
         findActivePlan(conversationState)
     }
@@ -340,6 +356,7 @@ fun TaskChatScreen(
                     DiffPanel(
                         onGetChangedFiles = onGetChangedFiles,
                         onGetFileDiff = onGetFileDiff,
+                        refreshTrigger = editWriteCompletedCount,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
