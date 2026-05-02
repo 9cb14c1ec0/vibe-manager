@@ -96,7 +96,15 @@ private fun groupStreamingBlocks(blocks: List<ContentBlock>): List<StreamBlockGr
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                currentToolRun.add(block)
+                if (isPlanTool(block.name)) {
+                    if (currentToolRun.isNotEmpty()) {
+                        groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
+                        currentToolRun = mutableListOf()
+                    }
+                    groups.add(StreamBlockGroup.Single(block))
+                } else {
+                    currentToolRun.add(block)
+                }
             }
             is ContentBlock.ToolResult -> {
                 // ToolResults consumed by their matching ToolUse group
@@ -144,14 +152,18 @@ private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>
             ThinkingBlock(text = block.text)
         }
         is ContentBlock.ToolUse -> {
-            ToolCallCard(
-                toolName = block.name,
-                input = block.input,
-                status = block.status,
-                result = allBlocks
-                    .filterIsInstance<ContentBlock.ToolResult>()
-                    .firstOrNull { it.toolUseId == block.id },
-            )
+            if (isPlanTool(block.name)) {
+                PlanCard(input = block.input)
+            } else {
+                ToolCallCard(
+                    toolName = block.name,
+                    input = block.input,
+                    status = block.status,
+                    result = allBlocks
+                        .filterIsInstance<ContentBlock.ToolResult>()
+                        .firstOrNull { it.toolUseId == block.id },
+                )
+            }
         }
         is ContentBlock.ToolResult -> {
             // Rendered with ToolUse

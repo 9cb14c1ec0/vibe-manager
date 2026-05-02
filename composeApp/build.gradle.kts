@@ -25,6 +25,8 @@ kotlin {
             implementation("io.github.compose-fluent:fluent:v0.1.0")
             implementation("io.github.compose-fluent:fluent-icons-extended:v0.1.0")
             implementation("dev.snipme:kodeview:0.9.0")
+            implementation("com.mikepenz:multiplatform-markdown-renderer:0.39.0")
+            implementation("com.mikepenz:multiplatform-markdown-renderer-m3:0.39.0")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
