@@ -96,7 +96,7 @@ private fun groupStreamingBlocks(blocks: List<ContentBlock>): List<StreamBlockGr
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                if (isPlanTool(block.name)) {
+                if (isPlanTool(block)) {
                     if (currentToolRun.isNotEmpty()) {
                         groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
                         currentToolRun = mutableListOf()
@@ -152,7 +152,7 @@ private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>
             ThinkingBlock(text = block.text)
         }
         is ContentBlock.ToolUse -> {
-            if (isPlanTool(block.name)) {
+            if (isPlanTool(block)) {
                 PlanCard(input = block.input)
             } else {
                 ToolCallCard(

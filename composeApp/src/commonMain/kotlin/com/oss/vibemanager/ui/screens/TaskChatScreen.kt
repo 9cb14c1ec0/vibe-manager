@@ -337,13 +337,13 @@ private fun ModelDropdown(
 private fun findActivePlan(state: ConversationState): String? {
     val streamPlan = state.streamingBlocks
         .filterIsInstance<ContentBlock.ToolUse>()
-        .lastOrNull { isPlanTool(it.name) && it.status == ToolStatus.Running }
+        .lastOrNull { isPlanTool(it) && it.status == ToolStatus.Running }
     if (streamPlan != null) return streamPlan.input
 
     for (message in state.messages.asReversed()) {
         val plan = message.blocks
             .filterIsInstance<ContentBlock.ToolUse>()
-            .lastOrNull { isPlanTool(it.name) && it.status == ToolStatus.Running }
+            .lastOrNull { isPlanTool(it) && it.status == ToolStatus.Running }
         if (plan != null) return plan.input
     }
     return null
