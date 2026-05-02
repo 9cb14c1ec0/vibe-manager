@@ -9,7 +9,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mikepenz.markdown.m3.Markdown
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.Text
@@ -33,7 +32,7 @@ fun PlanCard(
             )
 
             if (planText != null) {
-                Markdown(content = planText)
+                FluentMarkdown(content = planText)
             } else {
                 Text(
                     text = input,

@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mikepenz.markdown.m3.Markdown
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Text
 import com.oss.vibemanager.model.ContentBlock
@@ -143,7 +142,7 @@ private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>
     when (block) {
         is ContentBlock.Text -> {
             Box(modifier = Modifier.padding(bottom = 4.dp)) {
-                Markdown(content = block.text)
+                FluentMarkdown(content = block.text)
             }
         }
         is ContentBlock.Thinking -> {
