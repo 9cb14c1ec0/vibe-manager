@@ -42,12 +42,13 @@ private val HunkBackground = Color(0xFF0078D4).copy(alpha = 0.1f)
 fun DiffPanel(
     onGetChangedFiles: () -> Result<List<ChangedFile>>,
     onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
+    refreshTrigger: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     var fileDiffs by remember { mutableStateOf<List<FileDiff>>(emptyList()) }
     var loadError by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(refreshTrigger) {
         val filesResult = onGetChangedFiles()
         filesResult.onFailure { loadError = it.message }
         filesResult.onSuccess { files ->
