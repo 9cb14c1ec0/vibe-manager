@@ -29,10 +29,6 @@ private sealed class BlockGroup {
     ) : BlockGroup()
 }
 
-internal fun isPlanTool(name: String): Boolean =
-    name.equals("ExitPlanMode", ignoreCase = true) ||
-        name.equals("exit_plan_mode", ignoreCase = true)
-
 /**
  * Groups consecutive ToolUse/ToolResult blocks into runs, leaving other blocks as singles.
  */
@@ -45,7 +41,7 @@ private fun groupBlocks(blocks: List<ContentBlock>): List<BlockGroup> {
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                if (isPlanTool(block.name)) {
+                if (isPlanTool(block)) {
                     if (currentToolRun.isNotEmpty()) {
                         groups.add(BlockGroup.ToolRun(currentToolRun.toList(), allResults))
                         currentToolRun = mutableListOf()
@@ -144,7 +140,7 @@ private fun RenderBlock(block: ContentBlock) {
             ThinkingBlock(text = block.text)
         }
         is ContentBlock.ToolUse -> {
-            if (isPlanTool(block.name)) {
+            if (isPlanTool(block)) {
                 PlanCard(input = block.input)
             } else {
                 ToolCallCard(

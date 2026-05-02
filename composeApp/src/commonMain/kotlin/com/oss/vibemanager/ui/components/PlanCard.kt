@@ -13,9 +13,6 @@ import com.mikepenz.markdown.m3.Markdown
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.Text
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonObject
 
 @Composable
 fun PlanCard(
@@ -48,18 +45,3 @@ fun PlanCard(
         }
     }
 }
-
-private val lenientJson = Json { isLenient = true; ignoreUnknownKeys = true }
-
-private fun extractPlan(input: String): String? {
-    return try {
-        val obj = lenientJson.parseToJsonElement(input).jsonObject
-        (obj["plan"] as? JsonPrimitive)?.contentOrEmpty()
-            ?: (obj["content"] as? JsonPrimitive)?.contentOrEmpty()
-    } catch (_: Throwable) {
-        null
-    }
-}
-
-private fun JsonPrimitive.contentOrEmpty(): String? =
-    content.takeIf { it.isNotBlank() }

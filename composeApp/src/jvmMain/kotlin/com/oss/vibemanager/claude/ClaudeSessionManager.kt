@@ -404,6 +404,10 @@ class ClaudeSessionManager(
                     ?.mapNotNull { (it.content as? AcpContentBlock.Text)?.text }
                     ?.joinToString("\n")
                     ?: ""
+                val rawInputJson: String? = update.rawInput?.let {
+                    Json.encodeToString(JsonElement.serializer(), it)
+                }
+                val toolInput = rawInputJson ?: toolContent
 
                 // Check if we already have this tool call
                 val existingIdx = currentBlocks.indexOfFirst {
@@ -412,7 +416,12 @@ class ClaudeSessionManager(
                 if (existingIdx >= 0) {
                     // Update existing
                     val existing = currentBlocks[existingIdx] as ContentBlock.ToolUse
-                    currentBlocks[existingIdx] = existing.copy(status = status)
+                    val nextInput = when {
+                        rawInputJson != null -> rawInputJson
+                        existing.input.isBlank() && toolContent.isNotBlank() -> toolContent
+                        else -> existing.input
+                    }
+                    currentBlocks[existingIdx] = existing.copy(status = status, input = nextInput)
                     // Add/update result if completed
                     if (status == ToolStatus.Completed || status == ToolStatus.Error) {
                         val resultIdx = currentBlocks.indexOfFirst {
@@ -434,7 +443,7 @@ class ClaudeSessionManager(
                     currentBlocks.add(ContentBlock.ToolUse(
                         id = toolId,
                         name = update.title ?: "Tool",
-                        input = toolContent,
+                        input = toolInput,
                         status = status,
                     ))
                 }
