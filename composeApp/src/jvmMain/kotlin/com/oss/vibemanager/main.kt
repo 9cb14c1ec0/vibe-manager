@@ -87,6 +87,12 @@ fun main() = application {
                         onPermissionRespond = { requestId, optionId ->
                             sessionManager.respondToPermission(task.id, requestId, optionId)
                         },
+                        onGetChangedFiles = {
+                            GitOperations.getChangedFiles(task.worktreePath)
+                        },
+                        onGetFileDiff = { file ->
+                            GitOperations.getFileDiff(task.worktreePath, file.path, file.status)
+                        },
                     )
                 }
             },
@@ -94,6 +100,12 @@ fun main() = application {
                 val info = GitOperations.getGitInfo(repoPath).getOrNull()
                 if (info != null) Pair(info.currentBranch, info.isClean)
                 else Pair("unknown", true)
+            },
+            onGetChangedFiles = { repoPath ->
+                GitOperations.getChangedFiles(repoPath)
+            },
+            onGetFileDiff = { repoPath, file ->
+                GitOperations.getFileDiff(repoPath, file.path, file.status)
             },
             onDeleteTask = { taskId ->
                 sessionManager.dispose(taskId)

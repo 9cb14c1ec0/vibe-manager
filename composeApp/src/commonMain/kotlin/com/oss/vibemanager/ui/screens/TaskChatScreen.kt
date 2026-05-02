@@ -37,9 +37,12 @@ import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.Text
+import com.oss.vibemanager.model.ChangedFile
 import com.oss.vibemanager.model.ConversationState
+import com.oss.vibemanager.model.FileDiff
 import com.oss.vibemanager.model.SessionStatus
 import com.oss.vibemanager.ui.components.ChatInput
+import com.oss.vibemanager.ui.components.DiffPanel
 import com.oss.vibemanager.ui.components.MessageBubble
 import com.oss.vibemanager.ui.components.PermissionBanner
 import com.oss.vibemanager.ui.components.StreamingContent
@@ -68,9 +71,12 @@ fun TaskChatScreen(
     onModelSelected: (String) -> Unit,
     onModeSelected: (String) -> Unit,
     onPermissionRespond: (requestId: String, optionId: String) -> Unit = { _, _ -> },
+    onGetChangedFiles: () -> Result<List<ChangedFile>>,
+    onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    var showDiffPanel by remember { mutableStateOf(false) }
 
     // Track whether user has scrolled away from bottom
     var userScrolledUp by remember { mutableStateOf(false) }
@@ -130,6 +136,11 @@ fun TaskChatScreen(
                 },
             )
 
+            // Diff panel toggle
+            Button(onClick = { showDiffPanel = !showDiffPanel }) {
+                Text(if (showDiffPanel) "Hide Diff" else "Show Diff")
+            }
+
             val costStr = conversationState.totalCostUsd.let { cost ->
                 val cents = ((cost * 100).toInt()).toString().padStart(2, '0')
                 val dollars = (cost).toInt()
@@ -156,65 +167,87 @@ fun TaskChatScreen(
             Text(statusText, fontSize = 12.sp, color = statusColor)
         }
 
-        // Message list with visible scrollbar
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 8.dp),
-            ) {
-                items(conversationState.messages, key = { it.id }) { message ->
-                    MessageBubble(message = message)
+        // Main content area with optional diff panel
+        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            // Chat column
+            Column(modifier = Modifier.weight(1f)) {
+                // Message list with visible scrollbar
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                    ) {
+                        items(conversationState.messages, key = { it.id }) { message ->
+                            MessageBubble(message = message)
+                        }
+
+                        // Show streaming content at the bottom
+                        if (conversationState.isStreaming &&
+                            (conversationState.streamingBlocks.isNotEmpty() || conversationState.streamingText.isNotEmpty())
+                        ) {
+                            item(key = "streaming") {
+                                StreamingContent(
+                                    blocks = conversationState.streamingBlocks,
+                                    streamingText = conversationState.streamingText,
+                                )
+                            }
+                        }
+                    }
+
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(listState),
+                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp),
+                    )
                 }
 
-                // Show streaming content at the bottom
-                if (conversationState.isStreaming &&
-                    (conversationState.streamingBlocks.isNotEmpty() || conversationState.streamingText.isNotEmpty())
-                ) {
-                    item(key = "streaming") {
-                        StreamingContent(
-                            blocks = conversationState.streamingBlocks,
-                            streamingText = conversationState.streamingText,
-                        )
-                    }
+                // Error display
+                conversationState.error?.let { errorMsg ->
+                    Text(
+                        errorMsg,
+                        color = Color(0xFFE81123),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
                 }
+
+                // Permission approval banner
+                conversationState.pendingPermission?.let { permission ->
+                    PermissionBanner(
+                        permission = permission,
+                        onRespond = { optionId ->
+                            onPermissionRespond(permission.requestId, optionId)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                    )
+                }
+
+                // Input area
+                ChatInput(
+                    onSend = onSendMessage,
+                    onStop = onStopGeneration,
+                    isStreaming = conversationState.isStreaming,
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                )
             }
 
-            VerticalScrollbar(
-                adapter = rememberScrollbarAdapter(listState),
-                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp),
-            )
+            // Diff panel (shown on the right when toggled)
+            if (showDiffPanel) {
+                Box(
+                    modifier = Modifier
+                        .width(400.dp)
+                        .fillMaxHeight()
+                        .padding(end = 12.dp, top = 8.dp, bottom = 12.dp),
+                ) {
+                    DiffPanel(
+                        onGetChangedFiles = onGetChangedFiles,
+                        onGetFileDiff = onGetFileDiff,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
         }
-
-        // Error display
-        conversationState.error?.let { errorMsg ->
-            Text(
-                errorMsg,
-                color = Color(0xFFE81123),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-        }
-
-        // Permission approval banner
-        conversationState.pendingPermission?.let { permission ->
-            PermissionBanner(
-                permission = permission,
-                onRespond = { optionId ->
-                    onPermissionRespond(permission.requestId, optionId)
-                },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            )
-        }
-
-        // Input area
-        ChatInput(
-            onSend = onSendMessage,
-            onStop = onStopGeneration,
-            isStreaming = conversationState.isStreaming,
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-        )
     }
 }
 
