@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -60,6 +61,8 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 private val DiffPanelMinWidth: Dp = 240.dp
 private val DiffPanelMaxWidth: Dp = 900.dp
+private val TerminalPanelMinHeight: Dp = 120.dp
+private val TerminalPanelMaxHeight: Dp = 700.dp
 
 private data class ModelOption(val id: String, val label: String)
 
@@ -88,11 +91,16 @@ fun TaskChatScreen(
     onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
     diffPanelWidth: Float = 400f,
     onDiffPanelWidthChanged: (Float) -> Unit = {},
+    terminalPanelHeight: Float = 280f,
+    onTerminalPanelHeightChanged: (Float) -> Unit = {},
+    terminalContent: (@Composable (onExit: () -> Unit) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     var showDiffPanel by remember { mutableStateOf(false) }
+    var showTerminal by remember { mutableStateOf(false) }
     var diffWidth by remember { mutableStateOf(diffPanelWidth.dp.coerceIn(DiffPanelMinWidth, DiffPanelMaxWidth)) }
+    var terminalHeight by remember { mutableStateOf(terminalPanelHeight.dp.coerceIn(TerminalPanelMinHeight, TerminalPanelMaxHeight)) }
     val density = LocalDensity.current
     val activePlanInput: String? = remember(conversationState.streamingBlocks, conversationState.messages) {
         findActivePlan(conversationState)
@@ -160,6 +168,13 @@ fun TaskChatScreen(
             // Diff panel toggle
             Button(onClick = { showDiffPanel = !showDiffPanel }) {
                 Text(if (showDiffPanel) "Hide Diff" else "Show Diff")
+            }
+
+            // Terminal panel toggle
+            if (terminalContent != null) {
+                Button(onClick = { showTerminal = !showTerminal }) {
+                    Text(if (showTerminal) "Hide Terminal" else "Show Terminal")
+                }
             }
 
             val costStr = conversationState.totalCostUsd.let { cost ->
@@ -300,6 +315,38 @@ fun TaskChatScreen(
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
+            }
+        }
+
+        // Terminal panel (bottom, when toggled)
+        if (showTerminal && terminalContent != null) {
+            // Drag handle on the top edge for vertical resize
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .padding(horizontal = 8.dp)
+                    .background(FluentTheme.colors.stroke.divider.default)
+                    .pointerHoverIcon(PointerIcon.Crosshair)
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = {
+                                onTerminalPanelHeightChanged(terminalHeight.value)
+                            },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            val deltaDp = with(density) { -dragAmount.y.toDp() }
+                            terminalHeight = (terminalHeight + deltaDp).coerceIn(TerminalPanelMinHeight, TerminalPanelMaxHeight)
+                        }
+                    },
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(terminalHeight)
+                    .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+            ) {
+                terminalContent { showTerminal = false }
             }
         }
     }

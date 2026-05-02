@@ -228,6 +228,11 @@ class AppViewModel(
         save()
     }
 
+    fun setTerminalPanelHeight(height: Float) {
+        _appState.update { it.copy(terminalPanelHeight = height) }
+        save()
+    }
+
     private fun save() {
         repository.save(_appState.value)
     }
