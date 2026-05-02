@@ -101,19 +101,33 @@ class AcpBridgeManager(
     }
 
     private fun findClaudeExecutable(): String? {
-        // Try common locations
-        val candidates = listOf(
-            // Check PATH via 'where' on Windows
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val lookupCmd = if (isWindows) listOf("where", "claude") else listOf("which", "claude")
+
+        val candidates = mutableListOf<String?>()
+
+        // Check PATH
+        candidates.add(
             runCatching {
-                ProcessBuilder("where", "claude")
+                ProcessBuilder(lookupCmd)
                     .redirectErrorStream(true)
                     .start()
                     .inputStream.bufferedReader().readLine()?.trim()
-            }.getOrNull(),
-            // Common install locations
-            System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\claude\\claude.exe" },
-            System.getenv("APPDATA")?.let { "$it\\npm\\claude.cmd" },
+            }.getOrNull()
         )
+
+        if (isWindows) {
+            candidates.add(System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\claude\\claude.exe" })
+            candidates.add(System.getenv("APPDATA")?.let { "$it\\npm\\claude.cmd" })
+        } else {
+            val home = System.getProperty("user.home")
+            candidates.add("$home/.claude/local/claude")
+            candidates.add("$home/.local/bin/claude")
+            candidates.add("$home/.npm-global/bin/claude")
+            candidates.add("$home/.bun/bin/claude")
+            candidates.add("/usr/local/bin/claude")
+            candidates.add("/opt/homebrew/bin/claude")
+        }
 
         return candidates.firstOrNull { path ->
             path != null && File(path).exists()

@@ -112,21 +112,23 @@ fun main() = application {
 }
 
 private fun findBridgePath(): String {
+    val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+    val binName = if (isWindows) "acp-bridge.exe" else "acp-bridge"
     val candidates = mutableListOf<File>()
 
-    // 1. Check ~/.vibemanager/acp-bridge.exe (primary location)
-    candidates.add(File(System.getProperty("user.home"), ".vibemanager/acp-bridge.exe"))
+    // 1. Check ~/.vibemanager/acp-bridge (primary location)
+    candidates.add(File(System.getProperty("user.home"), ".vibemanager/$binName"))
 
     // 2. Check next to the running JAR (for distribution)
     try {
         val jarUri = ClaudeSessionManager::class.java.protectionDomain.codeSource?.location?.toURI()
         if (jarUri != null) {
-            candidates.add(File(File(jarUri).parentFile, "acp-bridge.exe"))
+            candidates.add(File(File(jarUri).parentFile, binName))
         }
     } catch (_: Exception) {}
 
     // 3. Check relative to working directory (development mode)
-    candidates.add(File("acp-bridge/dist/acp-bridge.exe"))
+    candidates.add(File("acp-bridge/dist/$binName"))
 
     for (candidate in candidates) {
         if (candidate.exists()) {
