@@ -93,6 +93,8 @@ fun main() = application {
                         onGetFileDiff = { file ->
                             GitOperations.getFileDiff(task.worktreePath, file.path, file.status)
                         },
+                        diffPanelWidth = appState.diffPanelWidth,
+                        onDiffPanelWidthChanged = viewModel::setDiffPanelWidth,
                     )
                 }
             },

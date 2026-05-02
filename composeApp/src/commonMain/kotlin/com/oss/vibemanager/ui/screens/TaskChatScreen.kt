@@ -4,6 +4,7 @@ import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
@@ -51,6 +57,9 @@ import com.oss.vibemanager.ui.components.PlanCard
 import com.oss.vibemanager.ui.components.StreamingContent
 import com.oss.vibemanager.ui.components.isPlanTool
 import kotlinx.coroutines.flow.distinctUntilChanged
+
+private val DiffPanelMinWidth: Dp = 240.dp
+private val DiffPanelMaxWidth: Dp = 900.dp
 
 private data class ModelOption(val id: String, val label: String)
 
@@ -77,10 +86,14 @@ fun TaskChatScreen(
     onPermissionRespond: (requestId: String, optionId: String) -> Unit = { _, _ -> },
     onGetChangedFiles: () -> Result<List<ChangedFile>>,
     onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
+    diffPanelWidth: Float = 400f,
+    onDiffPanelWidthChanged: (Float) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
     var showDiffPanel by remember { mutableStateOf(false) }
+    var diffWidth by remember { mutableStateOf(diffPanelWidth.dp.coerceIn(DiffPanelMinWidth, DiffPanelMaxWidth)) }
+    val density = LocalDensity.current
     val activePlanInput: String? = remember(conversationState.streamingBlocks, conversationState.messages) {
         findActivePlan(conversationState)
     }
@@ -255,9 +268,29 @@ fun TaskChatScreen(
 
             // Diff panel (shown on the right when toggled)
             if (showDiffPanel) {
+                // Drag handle on the left edge for resizing
                 Box(
                     modifier = Modifier
-                        .width(400.dp)
+                        .width(6.dp)
+                        .fillMaxHeight()
+                        .padding(vertical = 8.dp)
+                        .background(FluentTheme.colors.stroke.divider.default)
+                        .pointerHoverIcon(PointerIcon.Crosshair)
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    onDiffPanelWidthChanged(diffWidth.value)
+                                },
+                            ) { change, dragAmount ->
+                                change.consume()
+                                val deltaDp = with(density) { -dragAmount.x.toDp() }
+                                diffWidth = (diffWidth + deltaDp).coerceIn(DiffPanelMinWidth, DiffPanelMaxWidth)
+                            }
+                        },
+                )
+                Box(
+                    modifier = Modifier
+                        .width(diffWidth)
                         .fillMaxHeight()
                         .padding(end = 12.dp, top = 8.dp, bottom = 12.dp),
                 ) {

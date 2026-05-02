@@ -223,6 +223,11 @@ class AppViewModel(
         save()
     }
 
+    fun setDiffPanelWidth(width: Float) {
+        _appState.update { it.copy(diffPanelWidth = width) }
+        save()
+    }
+
     private fun save() {
         repository.save(_appState.value)
     }
