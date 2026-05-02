@@ -16,6 +16,7 @@ import com.agentclientprotocol.model.SessionModeId
 import com.agentclientprotocol.model.ToolCallContent
 import com.agentclientprotocol.model.ToolCallStatus
 import com.oss.vibemanager.model.*
+import com.oss.vibemanager.ui.components.isExitPlanModeTool
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.Json
@@ -27,6 +28,7 @@ class ClaudeSessionManager(
     private val scope: CoroutineScope,
     private val stateDir: String,
     private val bridgeManager: AcpBridgeManager,
+    private val onPlanApproved: (taskId: String) -> Unit = {},
 ) {
     private val sessions = ConcurrentHashMap<String, TaskSessionState>()
     private val conversationsDir = File(stateDir, "conversations")
@@ -312,12 +314,17 @@ class ClaudeSessionManager(
             ?.joinToString("\n")
             ?: ""
 
+        val rawInputJson = toolCall.rawInput?.let {
+            Json.encodeToString(JsonElement.serializer(), it)
+        } ?: ""
+
         val pending = PendingPermission(
             requestId = requestId,
             toolName = toolCall.title ?: toolCall.toolCallId.value,
             toolTitle = toolCall.title ?: "",
             inputSummary = inputSummary,
             options = choices,
+            rawInputJson = rawInputJson,
         )
 
         // Create a deferred for the response
@@ -342,6 +349,16 @@ class ClaudeSessionManager(
     fun respondToPermission(taskId: String, requestId: String, optionId: String) {
         val session = sessions[taskId] ?: return
         val deferred = session.permissionResponders[requestId] ?: return
+
+        val pending = session.conversationState.value.pendingPermission
+        if (pending != null && pending.requestId == requestId) {
+            val chosen = pending.options.firstOrNull { it.id == optionId }
+            val isAllow = chosen?.kind == "allow_once" || chosen?.kind == "allow_always"
+            if (isAllow && isExitPlanModeTool(pending.toolName, pending.rawInputJson)) {
+                onPlanApproved(taskId)
+            }
+        }
+
         deferred.complete(
             RequestPermissionResponse(
                 outcome = RequestPermissionOutcome.Selected(PermissionOptionId(optionId)),

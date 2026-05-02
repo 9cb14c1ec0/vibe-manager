@@ -76,6 +76,7 @@ data class PendingPermission(
     val toolTitle: String,
     val inputSummary: String,
     val options: List<PermissionChoice>,
+    val rawInputJson: String = "",
 )
 
 data class PermissionChoice(

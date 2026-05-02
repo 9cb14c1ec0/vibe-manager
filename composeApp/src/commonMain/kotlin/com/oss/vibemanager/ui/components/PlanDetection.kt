@@ -7,11 +7,14 @@ import kotlinx.serialization.json.jsonObject
 
 internal val planJson = Json { isLenient = true; ignoreUnknownKeys = true }
 
-internal fun isPlanTool(block: ContentBlock.ToolUse): Boolean {
-    if (block.name.equals("ExitPlanMode", ignoreCase = true) ||
-        block.name.equals("exit_plan_mode", ignoreCase = true)
+internal fun isPlanTool(block: ContentBlock.ToolUse): Boolean =
+    isExitPlanModeTool(block.name, block.input)
+
+internal fun isExitPlanModeTool(name: String, input: String): Boolean {
+    if (name.equals("ExitPlanMode", ignoreCase = true) ||
+        name.equals("exit_plan_mode", ignoreCase = true)
     ) return true
-    return extractPlan(block.input) != null
+    return extractPlan(input) != null
 }
 
 internal fun extractPlan(input: String): String? {

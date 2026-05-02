@@ -36,7 +36,12 @@ fun main() = application {
     // Find the ACP bridge binary
     val bridgePath = findBridgePath()
     val bridgeManager = AcpBridgeManager(sessionScope, bridgePath)
-    val sessionManager = ClaudeSessionManager(sessionScope, stateDir, bridgeManager)
+    val sessionManager = ClaudeSessionManager(
+        sessionScope,
+        stateDir,
+        bridgeManager,
+        onPlanApproved = { viewModel.setPermissionMode("acceptEdits") },
+    )
 
     Window(
         onCloseRequest = {
