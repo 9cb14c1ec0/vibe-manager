@@ -38,14 +38,18 @@ import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.Text
 import com.oss.vibemanager.model.ChangedFile
+import com.oss.vibemanager.model.ContentBlock
 import com.oss.vibemanager.model.ConversationState
 import com.oss.vibemanager.model.FileDiff
 import com.oss.vibemanager.model.SessionStatus
+import com.oss.vibemanager.model.ToolStatus
 import com.oss.vibemanager.ui.components.ChatInput
 import com.oss.vibemanager.ui.components.DiffPanel
 import com.oss.vibemanager.ui.components.MessageBubble
 import com.oss.vibemanager.ui.components.PermissionBanner
+import com.oss.vibemanager.ui.components.PlanCard
 import com.oss.vibemanager.ui.components.StreamingContent
+import com.oss.vibemanager.ui.components.isPlanTool
 import kotlinx.coroutines.flow.distinctUntilChanged
 
 private data class ModelOption(val id: String, val label: String)
@@ -77,6 +81,10 @@ fun TaskChatScreen(
 ) {
     val listState = rememberLazyListState()
     var showDiffPanel by remember { mutableStateOf(false) }
+    val activePlanInput: String? = remember(conversationState.streamingBlocks, conversationState.messages) {
+        findActivePlan(conversationState)
+    }
+    var showHistory by remember(activePlanInput == null) { mutableStateOf(false) }
 
     // Track whether user has scrolled away from bottom
     var userScrolledUp by remember { mutableStateOf(false) }
@@ -173,33 +181,46 @@ fun TaskChatScreen(
             Column(modifier = Modifier.weight(1f)) {
                 // Message list with visible scrollbar
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp),
-                    ) {
-                        items(conversationState.messages, key = { it.id }) { message ->
-                            MessageBubble(message = message)
-                        }
-
-                        // Show streaming content at the bottom
-                        if (conversationState.isStreaming &&
-                            (conversationState.streamingBlocks.isNotEmpty() || conversationState.streamingText.isNotEmpty())
+                    if (activePlanInput != null && !showHistory) {
+                        PlanFocusView(
+                            planInput = activePlanInput,
+                            onShowHistory = { showHistory = true },
+                            modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
+                        )
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp),
                         ) {
-                            item(key = "streaming") {
-                                StreamingContent(
-                                    blocks = conversationState.streamingBlocks,
-                                    streamingText = conversationState.streamingText,
-                                )
+                            if (activePlanInput != null && showHistory) {
+                                item(key = "hide-history") {
+                                    HideHistoryBar(onHide = { showHistory = false })
+                                }
+                            }
+                            items(conversationState.messages, key = { it.id }) { message ->
+                                MessageBubble(message = message)
+                            }
+
+                            // Show streaming content at the bottom
+                            if (conversationState.isStreaming &&
+                                (conversationState.streamingBlocks.isNotEmpty() || conversationState.streamingText.isNotEmpty())
+                            ) {
+                                item(key = "streaming") {
+                                    StreamingContent(
+                                        blocks = conversationState.streamingBlocks,
+                                        streamingText = conversationState.streamingText,
+                                    )
+                                }
                             }
                         }
-                    }
 
-                    VerticalScrollbar(
-                        adapter = rememberScrollbarAdapter(listState),
-                        modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp),
-                    )
+                        VerticalScrollbar(
+                            adapter = rememberScrollbarAdapter(listState),
+                            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp),
+                        )
+                    }
                 }
 
                 // Error display
@@ -309,6 +330,88 @@ private fun ModelDropdown(
                     },
                 )
             }
+        }
+    }
+}
+
+private fun findActivePlan(state: ConversationState): String? {
+    val streamPlan = state.streamingBlocks
+        .filterIsInstance<ContentBlock.ToolUse>()
+        .lastOrNull { isPlanTool(it.name) && it.status == ToolStatus.Running }
+    if (streamPlan != null) return streamPlan.input
+
+    for (message in state.messages.asReversed()) {
+        val plan = message.blocks
+            .filterIsInstance<ContentBlock.ToolUse>()
+            .lastOrNull { isPlanTool(it.name) && it.status == ToolStatus.Running }
+        if (plan != null) return plan.input
+    }
+    return null
+}
+
+@Composable
+private fun PlanFocusView(
+    planInput: String,
+    onShowHistory: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Plan ready for review",
+                fontSize = 13.sp,
+                color = FluentTheme.colors.text.text.secondary,
+            )
+            Box(modifier = Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onShowHistory() }
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "Show full conversation",
+                    fontSize = 12.sp,
+                    color = FluentTheme.colors.text.accent.primary,
+                )
+            }
+        }
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
+                item { PlanCard(input = planInput) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HideHistoryBar(
+    onHide: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onHide() }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+        ) {
+            Text(
+                text = "Focus on plan",
+                fontSize = 12.sp,
+                color = FluentTheme.colors.text.accent.primary,
+            )
         }
     }
 }
