@@ -114,10 +114,13 @@ fun TaskChatScreen(
     LaunchedEffect(listState) {
         snapshotFlow {
             val info = listState.layoutInfo
-            val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val visibleItems = info.visibleItemsInfo
             val totalItems = info.totalItemsCount
-            // Consider "at bottom" if last visible item is within 2 of the end
-            totalItems <= 0 || lastVisible >= totalItems - 2
+            if (visibleItems.isEmpty() || totalItems <= 0) {
+                true
+            } else {
+                visibleItems.last().index >= totalItems - 2
+            }
         }.distinctUntilChanged().collect { atBottom ->
             userScrolledUp = !atBottom
         }
@@ -485,8 +488,44 @@ private fun PlanFocusView(
                 )
             }
         }
+        val planListState = rememberLazyListState()
+        var planUserScrolledUp by remember { mutableStateOf(false) }
+
+        LaunchedEffect(planListState) {
+            snapshotFlow {
+                val info = planListState.layoutInfo
+                val visibleItems = info.visibleItemsInfo
+                if (visibleItems.isEmpty() || info.totalItemsCount <= 0) true
+                else visibleItems.last().index >= info.totalItemsCount - 2
+            }.distinctUntilChanged().collect { atBottom ->
+                planUserScrolledUp = !atBottom
+            }
+        }
+
+        LaunchedEffect(planInput) {
+            if (!planUserScrolledUp) {
+                planListState.scrollToItem(0, scrollOffset = Int.MAX_VALUE)
+            }
+        }
+
+        LaunchedEffect(planListState) {
+            snapshotFlow {
+                val info = planListState.layoutInfo
+                val last = info.visibleItemsInfo.lastOrNull()
+                if (last != null) last.offset + last.size else Int.MIN_VALUE
+            }.distinctUntilChanged().collect { lastBottom ->
+                if (!planUserScrolledUp && lastBottom != Int.MIN_VALUE) {
+                    val info = planListState.layoutInfo
+                    if (lastBottom > info.viewportEndOffset) {
+                        planListState.scrollToItem(0, scrollOffset = Int.MAX_VALUE)
+                    }
+                }
+            }
+        }
+
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            androidx.compose.foundation.lazy.LazyColumn(
+            LazyColumn(
+                state = planListState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = 8.dp),
             ) {
