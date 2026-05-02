@@ -9,4 +9,5 @@ data class AppState(
     val permissionMode: String = "acceptEdits",
     val model: String = "claude-opus-4-7",
     val themeMode: String = "light",
+    val diffPanelWidth: Float = 400f,
 )
