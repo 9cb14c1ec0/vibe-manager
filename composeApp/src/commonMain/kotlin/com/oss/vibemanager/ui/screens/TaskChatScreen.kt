@@ -133,6 +133,31 @@ fun TaskChatScreen(
         }
     }
 
+    // Also auto-scroll when item heights change (e.g. plan card rendered, tool group expanded).
+    // We track the bottom edge of the last visible item in viewport coordinates; when it grows
+    // past the viewport, scroll back to the bottom (unless the user is intentionally scrolled up).
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            if (last != null && last.index == info.totalItemsCount - 1) {
+                last.offset + last.size
+            } else {
+                Int.MIN_VALUE
+            }
+        }.distinctUntilChanged().collect { lastBottom ->
+            if (!userScrolledUp && lastBottom != Int.MIN_VALUE) {
+                val info = listState.layoutInfo
+                if (lastBottom > info.viewportEndOffset) {
+                    val totalItems = info.totalItemsCount
+                    if (totalItems > 0) {
+                        listState.animateScrollToItem(totalItems - 1)
+                    }
+                }
+            }
+        }
+    }
+
     Column(modifier = modifier.fillMaxSize()) {
         // Header bar
         Row(

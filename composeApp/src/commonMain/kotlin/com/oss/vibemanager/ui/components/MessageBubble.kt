@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mikepenz.markdown.m3.Markdown
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.Text
@@ -129,12 +130,9 @@ fun MessageBubble(
 private fun RenderBlock(block: ContentBlock) {
     when (block) {
         is ContentBlock.Text -> {
-            Text(
-                text = block.text,
-                fontSize = 14.sp,
-                color = FluentTheme.colors.text.text.primary,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
+            Box(modifier = Modifier.padding(bottom = 4.dp)) {
+                Markdown(content = block.text)
+            }
         }
         is ContentBlock.Thinking -> {
             ThinkingBlock(text = block.text)
