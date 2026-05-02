@@ -10,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mikepenz.markdown.m3.Markdown
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.background.Layer
 import io.github.composefluent.component.Text
@@ -131,7 +130,7 @@ private fun RenderBlock(block: ContentBlock) {
     when (block) {
         is ContentBlock.Text -> {
             Box(modifier = Modifier.padding(bottom = 4.dp)) {
-                Markdown(content = block.text)
+                FluentMarkdown(content = block.text)
             }
         }
         is ContentBlock.Thinking -> {
