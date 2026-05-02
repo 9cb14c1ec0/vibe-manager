@@ -2,6 +2,8 @@
 
 A desktop application for managing multiple concurrent Claude Code sessions across your git projects. Each task runs in its own git worktree with its own conversation, so you can drive several Claude sessions in parallel without them stepping on each other.
 
+<img width="1920" height="1040" alt="image" src="https://github.com/user-attachments/assets/fcd4be59-054d-43b3-8624-ec42595ed462" />
+
 ## Safety First
 
 Vibe Manager talks to Claude Code over the [Agent Client Protocol](https://github.com/zed-industries/agent-client-protocol). Every action Claude proposes -- file edits, shell commands, etc. -- surfaces as a permission request that you approve or deny in the UI. There is no auto-accept, no yolo mode. You stay in the loop for every decision.
