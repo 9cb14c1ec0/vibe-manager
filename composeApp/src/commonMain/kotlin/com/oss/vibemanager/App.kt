@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
+import io.github.composefluent.darkColors
+import io.github.composefluent.lightColors
 import io.github.composefluent.background.Mica
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.ContentDialog
@@ -90,7 +92,9 @@ fun App(
 
     val anyDialogOpen = showAddProject || showSettings || error != null
 
-    FluentTheme {
+    val isDark = appState.themeMode == "dark"
+    val colors = if (isDark) darkColors() else lightColors()
+    FluentTheme(colors = colors) {
         Mica(modifier = Modifier.fillMaxSize()) {
             NavigationView(
                 displayMode = NavigationDisplayMode.Left,
@@ -242,6 +246,22 @@ fun App(
             visible = true,
             content = {
                 Column {
+                    // Theme section
+                    Text("Theme", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    for ((id, label) in listOf(
+                        "light" to "Light",
+                        "dark" to "Dark",
+                    )) {
+                        Button(
+                            onClick = { viewModel.setThemeMode(id) },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        ) {
+                            Text(if (appState.themeMode == id) "$label (current)" else label)
+                        }
+                    }
+
+                    Spacer(Modifier.padding(top = 12.dp))
+
                     // Model section
                     Text("Default Model", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
                     for ((id, label) in listOf(

@@ -218,6 +218,11 @@ class AppViewModel(
         save()
     }
 
+    fun setThemeMode(mode: String) {
+        _appState.update { it.copy(themeMode = mode) }
+        save()
+    }
+
     private fun save() {
         repository.save(_appState.value)
     }
