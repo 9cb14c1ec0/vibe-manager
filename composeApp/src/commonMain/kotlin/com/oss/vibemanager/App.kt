@@ -42,8 +42,6 @@ import io.github.composefluent.icons.regular.Add
 import io.github.composefluent.icons.regular.Folder
 import io.github.composefluent.icons.regular.Settings
 import io.github.composefluent.icons.regular.WindowDevTools
-import com.oss.vibemanager.model.ChangedFile
-import com.oss.vibemanager.model.FileDiff
 import com.oss.vibemanager.model.TaskState
 import com.oss.vibemanager.ui.dialogs.AddProjectDialog
 import com.oss.vibemanager.ui.screens.ProjectDetailScreen
@@ -58,8 +56,6 @@ fun App(
     onBrowseDirectory: () -> String?,
     chatContent: @Composable (taskId: String, isActive: Boolean) -> Unit,
     gitInfoProvider: (repoPath: String) -> Pair<String, Boolean>,
-    onGetChangedFiles: (repoPath: String) -> Result<List<ChangedFile>>,
-    onGetFileDiff: (repoPath: String, file: ChangedFile) -> Result<FileDiff>,
     onDeleteTask: (taskId: String) -> Unit = {},
     isTaskIdle: (taskId: String) -> Boolean = { false },
 ) {
@@ -202,8 +198,6 @@ fun App(
                                         viewModel.deleteTask(task.id)
                                     },
                                     onRemoveProject = { viewModel.removeProject(project.id) },
-                                    onGetChangedFiles = { onGetChangedFiles(project.repoPath) },
-                                    onGetFileDiff = { file -> onGetFileDiff(project.repoPath, file) },
                                 )
                             } else {
                                 WelcomeScreen()

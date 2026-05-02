@@ -101,12 +101,6 @@ fun main() = application {
                 if (info != null) Pair(info.currentBranch, info.isClean)
                 else Pair("unknown", true)
             },
-            onGetChangedFiles = { repoPath ->
-                GitOperations.getChangedFiles(repoPath)
-            },
-            onGetFileDiff = { repoPath, file ->
-                GitOperations.getFileDiff(repoPath, file.path, file.status)
-            },
             onDeleteTask = { taskId ->
                 sessionManager.dispose(taskId)
             },

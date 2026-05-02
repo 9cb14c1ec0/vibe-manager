@@ -19,11 +19,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.Text
-import com.oss.vibemanager.model.ChangedFile
-import com.oss.vibemanager.model.FileDiff
 import com.oss.vibemanager.model.Project
 import com.oss.vibemanager.model.Task
-import com.oss.vibemanager.ui.components.DiffPanel
 import com.oss.vibemanager.ui.components.GitInfoBar
 import com.oss.vibemanager.ui.components.TaskCard
 import com.oss.vibemanager.ui.dialogs.ConfirmDeleteDialog
@@ -43,8 +40,6 @@ fun ProjectDetailScreen(
     onOpenTask: (Task) -> Unit,
     onDeleteTask: (Task) -> Unit,
     onRemoveProject: () -> Unit,
-    onGetChangedFiles: () -> Result<List<ChangedFile>>,
-    onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
     modifier: Modifier = Modifier,
 ) {
     var showCreateTask by remember { mutableStateOf(false) }
@@ -65,14 +60,6 @@ fun ProjectDetailScreen(
         }
 
         GitInfoBar(branch = gitBranch, isClean = gitClean, modifier = Modifier.padding(vertical = 8.dp))
-
-        if (!gitClean) {
-            DiffPanel(
-                onGetChangedFiles = onGetChangedFiles,
-                onGetFileDiff = onGetFileDiff,
-                modifier = Modifier.padding(vertical = 8.dp),
-            )
-        }
 
         Text(project.repoPath, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
 
