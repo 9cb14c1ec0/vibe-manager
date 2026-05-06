@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -505,49 +507,48 @@ private fun PlanFocusView(
                 )
             }
         }
-        val planListState = rememberLazyListState()
+        val planScrollState = rememberScrollState()
         var planUserScrolledUp by remember { mutableStateOf(false) }
 
-        LaunchedEffect(planListState) {
-            snapshotFlow {
-                val info = planListState.layoutInfo
-                val visibleItems = info.visibleItemsInfo
-                if (visibleItems.isEmpty() || info.totalItemsCount <= 0) true
-                else visibleItems.last().index >= info.totalItemsCount - 2
-            }.distinctUntilChanged().collect { atBottom ->
-                planUserScrolledUp = !atBottom
-            }
+        // Drive user-scrolled-up off `value` only (actual scroll movements),
+        // not off the maxValue/value differential. Otherwise content growth
+        // races the auto-follow: maxValue jumps before value catches up, the
+        // diff briefly exceeds the slop, and we falsely flag "user scrolled up"
+        // — which then suppresses auto-follow forever.
+        LaunchedEffect(planScrollState) {
+            snapshotFlow { planScrollState.value }
+                .distinctUntilChanged()
+                .collect { value ->
+                    planUserScrolledUp = planScrollState.maxValue - value > 8
+                }
         }
 
-        LaunchedEffect(planInput) {
-            if (!planUserScrolledUp) {
-                planListState.scrollToItem(0, scrollOffset = Int.MAX_VALUE)
-            }
-        }
-
-        LaunchedEffect(planListState) {
-            snapshotFlow {
-                val info = planListState.layoutInfo
-                val last = info.visibleItemsInfo.lastOrNull()
-                if (last != null) last.offset + last.size else Int.MIN_VALUE
-            }.distinctUntilChanged().collect { lastBottom ->
-                if (!planUserScrolledUp && lastBottom != Int.MIN_VALUE) {
-                    val info = planListState.layoutInfo
-                    if (lastBottom > info.viewportEndOffset) {
-                        planListState.scrollToItem(0, scrollOffset = Int.MAX_VALUE)
+        // Auto-follow: when the content grows (maxValue increases), jump to the
+        // new bottom unless the user has scrolled up.
+        LaunchedEffect(planScrollState, planInput) {
+            snapshotFlow { planScrollState.maxValue }
+                .distinctUntilChanged()
+                .collect { maxValue ->
+                    if (!planUserScrolledUp && maxValue > 0) {
+                        planScrollState.scrollTo(maxValue)
                     }
                 }
-            }
         }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            LazyColumn(
-                state = planListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 8.dp),
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(planScrollState)
+                    .padding(vertical = 8.dp),
             ) {
-                item { PlanCard(input = planInput) }
+                PlanCard(input = planInput)
             }
+
+            VerticalScrollbar(
+                adapter = rememberScrollbarAdapter(planScrollState),
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(end = 4.dp),
+            )
         }
     }
 }
