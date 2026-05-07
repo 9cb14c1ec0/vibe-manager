@@ -135,6 +135,11 @@ class ClaudeSessionManager(
         // Cancel any previous reader
         session.readerJob?.cancel()
 
+        // Collect streaming blocks for the current turn — declared outside the
+        // try so the catch block can persist any partial work on failure.
+        val currentBlocks = mutableListOf<ContentBlock>()
+        val currentText = StringBuilder()
+
         session.readerJob = scope.launch(Dispatchers.IO) {
             try {
                 // Get or create ACP session
@@ -159,10 +164,6 @@ class ClaudeSessionManager(
                 }
 
                 System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}...")
-
-                // Collect streaming blocks for the current turn
-                val currentBlocks = mutableListOf<ContentBlock>()
-                var currentText = StringBuilder()
 
                 // Send the prompt and collect events
                 acpSession.prompt(
@@ -237,11 +238,30 @@ class ClaudeSessionManager(
             } catch (e: Exception) {
                 System.err.println("[SessionMgr] Task $taskId ERROR: ${e::class.simpleName}: ${e.message}")
                 e.printStackTrace(System.err)
+                // Commit any partial assistant work as a message so it survives the
+                // error — both for display (messages render regardless of isStreaming)
+                // and for persistence (streamingBlocks is not in PersistedConversation).
+                if (currentBlocks.isNotEmpty()) {
+                    val assistantMessage = ConversationMessage(
+                        id = "assistant-${System.currentTimeMillis()}",
+                        role = MessageRole.Assistant,
+                        blocks = currentBlocks.toList(),
+                        timestamp = System.currentTimeMillis(),
+                    )
+                    state.update { it.copy(messages = it.messages + assistantMessage) }
+                }
                 state.update { it.copy(
                     status = SessionStatus.Error,
                     isStreaming = false,
+                    streamingText = "",
+                    streamingBlocks = emptyList(),
                     error = e.message ?: "Unknown error",
                 )}
+                saveConversation(taskId, state.value)
+                // The cached ACP session is likely dead after a fatal error; drop it
+                // so the next sendMessage establishes a fresh connection.
+                try { session.acpSession?.close(null) } catch (_: Exception) {}
+                session.acpSession = null
             }
         }
     }
