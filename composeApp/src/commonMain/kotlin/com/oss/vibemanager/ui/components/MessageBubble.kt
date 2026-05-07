@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
@@ -137,10 +138,13 @@ private fun RenderBlock(block: ContentBlock) {
             ThinkingBlock(text = block.text)
         }
         is ContentBlock.ToolUse -> {
-            if (isPlanTool(block)) {
-                PlanCard(input = block.input)
-            } else {
-                ToolCallCard(
+            when {
+                isPlanTool(block) -> PlanCard(input = block.input)
+                isWriteTool(block) -> WriteToolCard(
+                    input = block.input,
+                    status = block.status,
+                )
+                else -> ToolCallCard(
                     toolName = block.name,
                     input = block.input,
                     status = block.status,
@@ -166,12 +170,20 @@ fun CollapsibleToolGroup(
     // If there's only 1 tool, just render it directly
     if (tools.size == 1) {
         val tool = tools.first()
-        ToolCallCard(
-            toolName = tool.name,
-            input = tool.input,
-            status = tool.status,
-            result = results[tool.id],
-        )
+        if (isWriteTool(tool)) {
+            WriteToolCard(
+                input = tool.input,
+                status = tool.status,
+                result = results[tool.id],
+            )
+        } else {
+            ToolCallCard(
+                toolName = tool.name,
+                input = tool.input,
+                status = tool.status,
+                result = results[tool.id],
+            )
+        }
         return
     }
 
@@ -240,6 +252,24 @@ fun CollapsibleToolGroup(
                 }
             }
 
+            // Latest tool call summary — visible only when collapsed
+            if (!expanded) {
+                val latest = tools.last()
+                val latestParam = formatInputSummary(latest.name, latest.input)
+                val latestText = if (latestParam.isNotEmpty())
+                    "${latest.name}: $latestParam"
+                else
+                    latest.name
+                Text(
+                    text = latestText,
+                    fontSize = 12.sp,
+                    color = FluentTheme.colors.text.text.secondary,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    modifier = Modifier.padding(top = 2.dp, start = 19.dp),
+                )
+            }
+
             // Expanded: show all tool cards
             AnimatedVisibility(visible = expanded) {
                 Column(
@@ -247,12 +277,20 @@ fun CollapsibleToolGroup(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     for (tool in tools) {
-                        ToolCallCard(
-                            toolName = tool.name,
-                            input = tool.input,
-                            status = tool.status,
-                            result = results[tool.id],
-                        )
+                        if (isWriteTool(tool)) {
+                            WriteToolCard(
+                                input = tool.input,
+                                status = tool.status,
+                                result = results[tool.id],
+                            )
+                        } else {
+                            ToolCallCard(
+                                toolName = tool.name,
+                                input = tool.input,
+                                status = tool.status,
+                                result = results[tool.id],
+                            )
+                        }
                     }
                 }
             }

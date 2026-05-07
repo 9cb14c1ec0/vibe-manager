@@ -126,7 +126,7 @@ fun ToolCallCard(
  * Extracts a human-readable summary from tool input JSON.
  * For common tools, shows the most relevant parameter.
  */
-private fun formatInputSummary(toolName: String, input: String): String {
+internal fun formatInputSummary(toolName: String, input: String): String {
     return try {
         // Quick extraction of key values from JSON-like input
         when (toolName.lowercase()) {
