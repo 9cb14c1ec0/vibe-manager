@@ -125,60 +125,6 @@ fun TaskChatScreen(
     }
     var showHistory by remember(activePlanInput == null) { mutableStateOf(false) }
 
-    // Track whether user has scrolled away from bottom
-    var userScrolledUp by remember { mutableStateOf(false) }
-
-    // Detect manual scrolling away from bottom
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val visibleItems = info.visibleItemsInfo
-            val totalItems = info.totalItemsCount
-            if (visibleItems.isEmpty() || totalItems <= 0) {
-                true
-            } else {
-                visibleItems.last().index >= totalItems - 2
-            }
-        }.distinctUntilChanged().collect { atBottom ->
-            userScrolledUp = !atBottom
-        }
-    }
-
-    // Auto-scroll to bottom when new messages arrive or streaming updates (unless user scrolled up)
-    LaunchedEffect(conversationState.messages.size, conversationState.streamingBlocks.size, conversationState.streamingText) {
-        if (!userScrolledUp) {
-            val totalItems = listState.layoutInfo.totalItemsCount
-            if (totalItems > 0) {
-                listState.animateScrollToItem(totalItems - 1)
-            }
-        }
-    }
-
-    // Also auto-scroll when item heights change (e.g. plan card rendered, tool group expanded).
-    // We track the bottom edge of the last visible item in viewport coordinates; when it grows
-    // past the viewport, scroll back to the bottom (unless the user is intentionally scrolled up).
-    LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()
-            if (last != null && last.index == info.totalItemsCount - 1) {
-                last.offset + last.size
-            } else {
-                Int.MIN_VALUE
-            }
-        }.distinctUntilChanged().collect { lastBottom ->
-            if (!userScrolledUp && lastBottom != Int.MIN_VALUE) {
-                val info = listState.layoutInfo
-                if (lastBottom > info.viewportEndOffset) {
-                    val totalItems = info.totalItemsCount
-                    if (totalItems > 0) {
-                        listState.animateScrollToItem(totalItems - 1)
-                    }
-                }
-            }
-        }
-    }
-
     Column(modifier = modifier.fillMaxSize()) {
         // Header bar
         Row(
@@ -267,17 +213,8 @@ fun TaskChatScreen(
                             modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 20.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(vertical = 8.dp),
+                            reverseLayout = true,
                         ) {
-                            if (activePlanInput != null && showHistory) {
-                                item(key = "hide-history") {
-                                    HideHistoryBar(onHide = { showHistory = false })
-                                }
-                            }
-                            items(conversationState.messages, key = { it.id }) { message ->
-                                MessageBubble(message = message)
-                            }
-
-                            // Show streaming content at the bottom
                             if (conversationState.isStreaming &&
                                 (conversationState.streamingBlocks.isNotEmpty() || conversationState.streamingText.isNotEmpty())
                             ) {
@@ -286,6 +223,17 @@ fun TaskChatScreen(
                                         blocks = conversationState.streamingBlocks,
                                         streamingText = conversationState.streamingText,
                                     )
+                                }
+                            }
+                            items(
+                                items = conversationState.messages.asReversed(),
+                                key = { it.id },
+                            ) { message ->
+                                MessageBubble(message = message)
+                            }
+                            if (activePlanInput != null && showHistory) {
+                                item(key = "hide-history") {
+                                    HideHistoryBar(onHide = { showHistory = false })
                                 }
                             }
                         }
