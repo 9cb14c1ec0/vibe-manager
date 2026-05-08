@@ -96,7 +96,7 @@ private fun groupStreamingBlocks(blocks: List<ContentBlock>): List<StreamBlockGr
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                if (isPlanTool(block)) {
+                if (isPlanTool(block) || isEditTool(block)) {
                     if (currentToolRun.isNotEmpty()) {
                         groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
                         currentToolRun = mutableListOf()
@@ -149,16 +149,26 @@ private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>
             ThinkingBlock(text = block.text)
         }
         is ContentBlock.ToolUse -> {
-            if (isPlanTool(block)) {
-                PlanCard(input = block.input)
-            } else {
-                ToolCallCard(
+            val result = allBlocks
+                .filterIsInstance<ContentBlock.ToolResult>()
+                .firstOrNull { it.toolUseId == block.id }
+            when {
+                isPlanTool(block) -> PlanCard(input = block.input)
+                isEditTool(block) -> EditToolCard(
+                    input = block.input,
+                    status = block.status,
+                    result = result,
+                )
+                isWriteTool(block) -> WriteToolCard(
+                    input = block.input,
+                    status = block.status,
+                    result = result,
+                )
+                else -> ToolCallCard(
                     toolName = block.name,
                     input = block.input,
                     status = block.status,
-                    result = allBlocks
-                        .filterIsInstance<ContentBlock.ToolResult>()
-                        .firstOrNull { it.toolUseId == block.id },
+                    result = result,
                 )
             }
         }
