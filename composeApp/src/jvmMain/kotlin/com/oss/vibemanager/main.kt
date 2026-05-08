@@ -121,6 +121,12 @@ fun main() = application {
                         onGetFileDiff = { file ->
                             GitOperations.getFileDiff(task.worktreePath, file.path, file.status)
                         },
+                        onCommit = { message ->
+                            GitOperations.commit(task.worktreePath, message)
+                        },
+                        onPush = {
+                            GitOperations.push(task.worktreePath)
+                        },
                         diffPanelWidth = appState.diffPanelWidth,
                         onDiffPanelWidthChanged = viewModel::setDiffPanelWidth,
                         terminalPanelHeight = appState.terminalPanelHeight,

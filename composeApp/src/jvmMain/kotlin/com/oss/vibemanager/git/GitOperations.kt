@@ -36,6 +36,16 @@ object GitOperations {
         return runGit(repoPath, "pull").map { }
     }
 
+    fun commit(repoPath: String, message: String): Result<Unit> = runCatching {
+        runGit(repoPath, "add", "-A").getOrThrow()
+        runGit(repoPath, "commit", "-m", message).getOrThrow()
+        Unit
+    }
+
+    fun push(repoPath: String): Result<Unit> {
+        return runGit(repoPath, "push").map { }
+    }
+
     fun createWorktree(repoPath: String, worktreePath: String, branchName: String): Result<Unit> {
         return runGit(repoPath, "worktree", "add", "-b", branchName, worktreePath).map { }
     }

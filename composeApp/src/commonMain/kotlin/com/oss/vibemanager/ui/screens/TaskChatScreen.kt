@@ -82,6 +82,8 @@ fun TaskChatScreen(
     onPermissionRespond: (requestId: String, optionId: String) -> Unit = { _, _ -> },
     onGetChangedFiles: () -> Result<List<ChangedFile>>,
     onGetFileDiff: (ChangedFile) -> Result<FileDiff>,
+    onCommit: (String) -> Result<Unit> = { Result.failure(NotImplementedError()) },
+    onPush: () -> Result<Unit> = { Result.failure(NotImplementedError()) },
     diffPanelWidth: Float = 400f,
     onDiffPanelWidthChanged: (Float) -> Unit = {},
     terminalPanelHeight: Float = 280f,
@@ -303,6 +305,8 @@ fun TaskChatScreen(
                         onGetChangedFiles = onGetChangedFiles,
                         onGetFileDiff = onGetFileDiff,
                         refreshTrigger = editWriteCompletedCount,
+                        onCommit = onCommit,
+                        onPush = onPush,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
