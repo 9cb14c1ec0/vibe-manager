@@ -38,8 +38,24 @@ private val DeletionTextColor = Color(0xFFE81123)
 private val EditAdditionBackground = Color(0xFF16C60C).copy(alpha = 0.15f)
 private val EditAdditionTextColor = Color(0xFF16C60C)
 
-internal fun isEditTool(block: ContentBlock.ToolUse): Boolean =
-    block.name.equals("Edit", ignoreCase = true)
+internal fun isEditTool(block: ContentBlock.ToolUse): Boolean {
+    if (block.name.equals("Edit", ignoreCase = true)) return true
+    // Title varies across agents (e.g. "Edit `path/file.kt`"). Detect by input shape.
+    if (block.name.startsWith("Edit", ignoreCase = true)) return true
+    return inputLooksLikeEdit(block.input)
+}
+
+private fun inputLooksLikeEdit(input: String): Boolean {
+    if (input.isBlank()) return false
+    return try {
+        val obj = planJson.parseToJsonElement(input).jsonObject
+        obj.containsKey("file_path") &&
+            obj.containsKey("old_string") &&
+            obj.containsKey("new_string")
+    } catch (_: Throwable) {
+        false
+    }
+}
 
 private data class EditToolFields(
     val filePath: String?,

@@ -36,8 +36,23 @@ import kotlinx.serialization.json.jsonObject
 private val AdditionBackground = Color(0xFF16C60C).copy(alpha = 0.15f)
 private val AdditionTextColor = Color(0xFF16C60C)
 
-internal fun isWriteTool(block: ContentBlock.ToolUse): Boolean =
-    block.name.equals("Write", ignoreCase = true)
+internal fun isWriteTool(block: ContentBlock.ToolUse): Boolean {
+    if (block.name.equals("Write", ignoreCase = true)) return true
+    if (block.name.startsWith("Write", ignoreCase = true)) return true
+    return inputLooksLikeWrite(block.input)
+}
+
+private fun inputLooksLikeWrite(input: String): Boolean {
+    if (input.isBlank()) return false
+    return try {
+        val obj = planJson.parseToJsonElement(input).jsonObject
+        obj.containsKey("file_path") &&
+            obj.containsKey("content") &&
+            !obj.containsKey("old_string")
+    } catch (_: Throwable) {
+        false
+    }
+}
 
 private data class WriteToolFields(val filePath: String?, val content: String?)
 
