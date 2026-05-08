@@ -155,7 +155,8 @@ private suspend fun handleGet(
                 workDir = task.worktreePath,
             )
             val convoState = sessionManager.getConversationState(task.id, task.agentSessionId).value
-            call.respondHtml { renderTask(this, task, convoState) }
+            val permissionMode = viewModel.appState.value.permissionMode
+            call.respondHtml { renderTask(this, task, convoState, permissionMode) }
         }
         segments.size == 3 && segments[0] == "tasks" && segments[2] == "stream" -> {
             val task = viewModel.appState.value.tasks.find { it.id == segments[1] }
@@ -286,6 +287,15 @@ private suspend fun handlePost(
         segments.size == 3 && segments[0] == "tasks" && segments[2] == "stop" -> {
             val taskId = segments[1]
             sessionManager.stopGeneration(taskId)
+            call.respondText("", contentType = ContentType.Text.Html)
+        }
+        segments.size == 3 && segments[0] == "tasks" && segments[2] == "mode" -> {
+            val mode = params["mode"]?.trim().orEmpty()
+            if (mode !in listOf("plan", "acceptEdits")) {
+                call.respondText("Invalid mode", status = HttpStatusCode.BadRequest)
+                return
+            }
+            viewModel.setPermissionMode(mode)
             call.respondText("", contentType = ContentType.Text.Html)
         }
         segments.size == 3 && segments[0] == "tasks" && segments[2] == "permission" -> {
