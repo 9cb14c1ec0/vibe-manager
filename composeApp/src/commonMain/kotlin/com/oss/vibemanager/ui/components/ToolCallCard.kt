@@ -89,18 +89,15 @@ fun ToolCallCard(
                             fontSize = 11.sp,
                             color = FluentTheme.colors.text.text.tertiary,
                         )
-                        Text(
-                            text = input.take(2000),
-                            fontSize = 11.sp,
-                            color = FluentTheme.colors.text.text.secondary,
-                            fontFamily = FontFamily.Monospace,
+                        FluentMarkdown(
+                            content = "```\n${input.take(2000)}\n```",
                             modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
                         )
                     }
 
                     // Result
                     if (result != null) {
-                        Text(
+                         Text(
                             text = if (result.isError) "Error:" else "Output:",
                             fontSize = 11.sp,
                             color = if (result.isError)
@@ -108,11 +105,8 @@ fun ToolCallCard(
                             else
                                 FluentTheme.colors.text.text.tertiary,
                         )
-                        Text(
-                            text = result.content.take(2000),
-                            fontSize = 11.sp,
-                            color = FluentTheme.colors.text.text.secondary,
-                            fontFamily = FontFamily.Monospace,
+                        FluentMarkdown(
+                            content = result.content.take(2000),
                             modifier = Modifier.padding(top = 2.dp),
                         )
                     }
