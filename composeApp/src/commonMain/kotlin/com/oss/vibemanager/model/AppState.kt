@@ -12,4 +12,7 @@ data class AppState(
     val diffPanelWidth: Float = 400f,
     val terminalPanelHeight: Float = 280f,
     val defaultAgentKind: String = "Claude",
+    val webRemoteEnabled: Boolean = false,
+    val webRemotePort: Int = 7777,
+    val webRemoteToken: String = "",
 )

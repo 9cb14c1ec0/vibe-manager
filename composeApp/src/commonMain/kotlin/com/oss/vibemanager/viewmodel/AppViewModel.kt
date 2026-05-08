@@ -240,7 +240,39 @@ class AppViewModel(
         save()
     }
 
+    fun setWebRemoteEnabled(enabled: Boolean) {
+        _appState.update { state ->
+            val token = if (enabled && state.webRemoteToken.isBlank()) {
+                generateToken()
+            } else state.webRemoteToken
+            state.copy(webRemoteEnabled = enabled, webRemoteToken = token)
+        }
+        save()
+    }
+
+    fun setWebRemotePort(port: Int) {
+        if (port < 1 || port > 65535) {
+            _error.value = "Port must be between 1 and 65535"
+            return
+        }
+        _appState.update { it.copy(webRemotePort = port) }
+        save()
+    }
+
+    fun regenerateWebRemoteToken() {
+        _appState.update { it.copy(webRemoteToken = generateToken()) }
+        save()
+    }
+
+    private fun generateToken(): String =
+        (1..32).map { TOKEN_ALPHABET.random() }.joinToString("")
+
     private fun save() {
         repository.save(_appState.value)
+    }
+
+    companion object {
+        private const val TOKEN_ALPHABET =
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     }
 }
