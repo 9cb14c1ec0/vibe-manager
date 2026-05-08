@@ -299,9 +299,16 @@ class AgentSessionManager(
             createClientOperations(session, taskId)
         }
 
-        val models = if (acpSession.modelsSupported) {
+        val sdkModels = if (acpSession.modelsSupported) {
             acpSession.availableModels.map { AgentModelOption(it.modelId.value, it.name) }
         } else emptyList()
+        val extraModels = if (agentKind == AgentKind.Claude) listOf(
+            AgentModelOption("claude-sonnet-4-5", "Claude Sonnet 4.5"),
+            AgentModelOption("claude-sonnet-4-6", "Claude Sonnet 4.6"),
+            AgentModelOption("claude-opus-4-5", "Claude Opus 4.5"),
+            AgentModelOption("claude-opus-4-6", "Claude Opus 4.6"),
+        ) else emptyList()
+        val models = sdkModels + extraModels.filterNot { extra -> sdkModels.any { it.id == extra.id } }
         val modes = if (acpSession.modesSupported) {
             acpSession.availableModes.map { AgentModeOption(it.id.value, it.name) }
         } else emptyList()
