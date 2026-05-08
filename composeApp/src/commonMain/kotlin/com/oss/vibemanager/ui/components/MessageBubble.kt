@@ -147,6 +147,10 @@ private fun RenderBlock(block: ContentBlock) {
                     input = block.input,
                     status = block.status,
                 )
+                isEditTool(block) -> EditToolCard(
+                    input = block.input,
+                    status = block.status,
+                )
                 else -> ToolCallCard(
                     toolName = block.name,
                     input = block.input,
@@ -194,6 +198,12 @@ fun CollapsibleToolGroup(
         val tool = tools.first()
         if (isWriteTool(tool)) {
             WriteToolCard(
+                input = tool.input,
+                status = tool.status,
+                result = results[tool.id],
+            )
+        } else if (isEditTool(tool)) {
+            EditToolCard(
                 input = tool.input,
                 status = tool.status,
                 result = results[tool.id],
@@ -301,6 +311,12 @@ fun CollapsibleToolGroup(
                     for (tool in tools) {
                         if (isWriteTool(tool)) {
                             WriteToolCard(
+                                input = tool.input,
+                                status = tool.status,
+                                result = results[tool.id],
+                            )
+                        } else if (isEditTool(tool)) {
+                            EditToolCard(
                                 input = tool.input,
                                 status = tool.status,
                                 result = results[tool.id],
