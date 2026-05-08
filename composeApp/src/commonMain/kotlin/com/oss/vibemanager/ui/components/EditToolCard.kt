@@ -85,7 +85,7 @@ fun EditToolCard(
     result: ContentBlock.ToolResult? = null,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(true) }
     val fields = remember(input) { parseEditInput(input) }
 
     Layer(

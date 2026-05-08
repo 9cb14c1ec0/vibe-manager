@@ -45,7 +45,7 @@ private fun groupBlocks(blocks: List<ContentBlock>): List<BlockGroup> {
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                if (isPlanTool(block)) {
+                if (isPlanTool(block) || isEditTool(block)) {
                     if (currentToolRun.isNotEmpty()) {
                         groups.add(BlockGroup.ToolRun(currentToolRun.toList(), allResults))
                         currentToolRun = mutableListOf()
