@@ -33,10 +33,12 @@ fun ProjectDetailScreen(
     tasks: List<Task>,
     gitBranch: String,
     gitClean: Boolean,
-    onCreateTask: (name: String, branch: String) -> Unit,
+    availableAgents: List<Pair<String, String>>,
+    defaultAgent: String,
+    onCreateTask: (name: String, branch: String, agentKind: String) -> Unit,
     onListBranches: () -> Result<List<String>>,
     onListRemoteBranches: () -> Result<List<String>>,
-    onCreateTaskFromBranch: (name: String, branch: String) -> Unit,
+    onCreateTaskFromBranch: (name: String, branch: String, agentKind: String) -> Unit,
     onOpenTask: (Task) -> Unit,
     onDeleteTask: (Task) -> Unit,
     onRemoveProject: () -> Unit,
@@ -102,9 +104,11 @@ fun ProjectDetailScreen(
 
     if (showCreateTask) {
         CreateTaskDialog(
+            availableAgents = availableAgents,
+            defaultAgent = defaultAgent,
             onDismiss = { showCreateTask = false },
-            onCreate = { name, branch ->
-                onCreateTask(name, branch)
+            onCreate = { name, branch, agent ->
+                onCreateTask(name, branch, agent)
                 showCreateTask = false
             },
         )
@@ -114,9 +118,11 @@ fun ProjectDetailScreen(
         FromBranchDialog(
             localBranches = availableBranches,
             remoteBranches = availableRemoteBranches,
+            availableAgents = availableAgents,
+            defaultAgent = defaultAgent,
             onDismiss = { showFromBranch = false },
-            onCreate = { name, branch ->
-                onCreateTaskFromBranch(name, branch)
+            onCreate = { name, branch, agent ->
+                onCreateTaskFromBranch(name, branch, agent)
                 showFromBranch = false
             },
         )

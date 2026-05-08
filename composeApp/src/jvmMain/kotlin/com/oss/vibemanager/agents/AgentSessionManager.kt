@@ -1,4 +1,4 @@
-package com.oss.vibemanager.claude
+package com.oss.vibemanager.agents
 
 import com.agentclientprotocol.client.ClientSession
 import com.agentclientprotocol.common.ClientSessionOperations
@@ -19,15 +19,17 @@ import com.oss.vibemanager.model.*
 import com.oss.vibemanager.ui.components.isExitPlanModeTool
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
-class ClaudeSessionManager(
+class AgentSessionManager(
     private val scope: CoroutineScope,
     private val stateDir: String,
-    private val bridgeManager: AcpBridgeManager,
+    private val clientManager: AgentClientManager,
     private val onPlanApproved: (taskId: String) -> Unit = {},
 ) {
     private val sessions = ConcurrentHashMap<String, TaskSessionState>()
@@ -42,11 +44,29 @@ class ClaudeSessionManager(
         val conversationState: MutableStateFlow<ConversationState>,
         var acpSession: ClientSession? = null,
         var readerJob: Job? = null,
+        val sessionCreateMutex: Mutex = Mutex(),
         val permissionResponders: ConcurrentHashMap<String, CompletableDeferred<RequestPermissionResponse>> = ConcurrentHashMap(),
     )
 
     fun getConversationState(taskId: String, sessionId: String): StateFlow<ConversationState> {
         return getOrCreateSession(taskId, sessionId).conversationState.asStateFlow()
+    }
+
+    /**
+     * Open the ACP session for this task without sending a prompt, so the UI can show
+     * the agent's available models / modes before the user types anything.
+     * No-op if the session already exists or is being created.
+     */
+    fun prewarmSession(taskId: String, sessionId: String, agentKind: AgentKind, workDir: String) {
+        val session = getOrCreateSession(taskId, sessionId)
+        if (session.acpSession != null) return
+        scope.launch(Dispatchers.IO) {
+            try {
+                getOrCreateAcpSession(session, taskId, workDir, agentKind)
+            } catch (e: Exception) {
+                System.err.println("[AgentSession] Prewarm failed for $taskId: ${e.message}")
+            }
+        }
     }
 
     private fun getOrCreateSession(taskId: String, sessionId: String): TaskSessionState {
@@ -99,6 +119,7 @@ class ClaudeSessionManager(
     fun sendMessage(
         taskId: String,
         sessionId: String,
+        agentKind: AgentKind,
         prompt: String,
         workDir: String,
         permissionMode: String = "acceptEdits",
@@ -109,7 +130,6 @@ class ClaudeSessionManager(
         val session = getOrCreateSession(taskId, sessionId)
         val state = session.conversationState
 
-        // Add user message
         val messageBlocks = mutableListOf<ContentBlock>()
         messageBlocks.add(ContentBlock.Text(prompt))
         messageBlocks.addAll(images)
@@ -121,7 +141,6 @@ class ClaudeSessionManager(
             timestamp = System.currentTimeMillis(),
         )
 
-        // Store the selected model on conversation state
         val effectiveModel = model.ifEmpty { state.value.model }
 
         state.update { it.copy(
@@ -137,59 +156,50 @@ class ClaudeSessionManager(
 
         saveConversation(taskId, state.value)
 
-        // Cancel any previous reader
         session.readerJob?.cancel()
 
-        // Collect streaming blocks for the current turn — declared outside the
-        // try so the catch block can persist any partial work on failure.
         val currentBlocks = mutableListOf<ContentBlock>()
         val currentText = StringBuilder()
 
         session.readerJob = scope.launch(Dispatchers.IO) {
             try {
-                // Get or create ACP session
-                System.err.println("[SessionMgr] Getting ACP session for task $taskId...")
-                val isNewSession = session.acpSession == null
-                val acpSession = getOrCreateAcpSession(session, taskId, workDir)
+                System.err.println("[AgentSession] Getting ACP session for task $taskId (agent=$agentKind)...")
+                val acpSession = getOrCreateAcpSession(session, taskId, workDir, agentKind)
 
-                // Apply model and permission mode after session creation or when changed
-                if (effectiveModel.isNotEmpty()) {
+                if (effectiveModel.isNotEmpty() && acpSession.modelsSupported) {
                     try {
-                        System.err.println("[SessionMgr] Setting model: $effectiveModel")
+                        System.err.println("[AgentSession] Setting model: $effectiveModel")
                         acpSession.setModel(ModelId(effectiveModel))
                     } catch (e: Exception) {
-                        System.err.println("[SessionMgr] Failed to set model: ${e.message}")
+                        System.err.println("[AgentSession] Failed to set model: ${e.message}")
                     }
                 }
-                try {
-                    System.err.println("[SessionMgr] Setting permission mode: $permissionMode")
-                    acpSession.setMode(SessionModeId(permissionMode))
-                } catch (e: Exception) {
-                    System.err.println("[SessionMgr] Failed to set mode: ${e.message}")
+                if (acpSession.modesSupported) {
+                    try {
+                        System.err.println("[AgentSession] Setting permission mode: $permissionMode")
+                        acpSession.setMode(SessionModeId(permissionMode))
+                    } catch (e: Exception) {
+                        System.err.println("[AgentSession] Failed to set mode: ${e.message}")
+                    }
                 }
 
-                System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}... (images: ${images.size})")
+                System.err.println("[AgentSession] Sending prompt: ${prompt.take(100)}... (images: ${images.size})")
 
-                // Build ACP content blocks
                 val acpContentBlocks = mutableListOf<AcpContentBlock>()
                 acpContentBlocks.add(AcpContentBlock.Text(prompt))
                 images.forEach { image ->
                     acpContentBlocks.add(AcpContentBlock.Image(image.base64Data, image.mediaType))
                 }
 
-                // Send the prompt and collect events
                 acpSession.prompt(acpContentBlocks).collect { event ->
-                    System.err.println("[SessionMgr] Received event: ${event::class.simpleName}")
                     when (event) {
                         is Event.SessionUpdateEvent -> {
-                            System.err.println("[SessionMgr]   Update type: ${event.update::class.simpleName}")
                             handleSessionUpdate(
                                 event.update, session, taskId,
                                 currentBlocks, currentText,
                             )
                         }
                         is Event.PromptResponseEvent -> {
-                            // Turn complete — finalize assistant message
                             if (currentBlocks.isNotEmpty()) {
                                 val assistantMessage = ConversationMessage(
                                     id = "assistant-${System.currentTimeMillis()}",
@@ -217,7 +227,6 @@ class ClaudeSessionManager(
                     }
                 }
 
-                // If stream ended without PromptResponseEvent, clean up
                 if (state.value.isStreaming) {
                     if (currentBlocks.isNotEmpty()) {
                         val assistantMessage = ConversationMessage(
@@ -243,14 +252,11 @@ class ClaudeSessionManager(
                 }
 
             } catch (e: CancellationException) {
-                System.err.println("[SessionMgr] Task $taskId cancelled")
+                System.err.println("[AgentSession] Task $taskId cancelled")
                 throw e
             } catch (e: Exception) {
-                System.err.println("[SessionMgr] Task $taskId ERROR: ${e::class.simpleName}: ${e.message}")
+                System.err.println("[AgentSession] Task $taskId ERROR: ${e::class.simpleName}: ${e.message}")
                 e.printStackTrace(System.err)
-                // Commit any partial assistant work as a message so it survives the
-                // error — both for display (messages render regardless of isStreaming)
-                // and for persistence (streamingBlocks is not in PersistedConversation).
                 if (currentBlocks.isNotEmpty()) {
                     val assistantMessage = ConversationMessage(
                         id = "assistant-${System.currentTimeMillis()}",
@@ -268,8 +274,6 @@ class ClaudeSessionManager(
                     error = e.message ?: "Unknown error",
                 )}
                 saveConversation(taskId, state.value)
-                // The cached ACP session is likely dead after a fatal error; drop it
-                // so the next sendMessage establishes a fresh connection.
                 try { session.acpSession?.close(null) } catch (_: Exception) {}
                 session.acpSession = null
             }
@@ -280,28 +284,34 @@ class ClaudeSessionManager(
         session: TaskSessionState,
         taskId: String,
         workDir: String,
-    ): ClientSession {
-        session.acpSession?.let {
-            System.err.println("[SessionMgr] Reusing existing ACP session for task $taskId")
-            return it
-        }
+        agentKind: AgentKind,
+    ): ClientSession = session.sessionCreateMutex.withLock {
+        session.acpSession?.let { return@withLock it }
 
-        System.err.println("[SessionMgr] Creating new ACP session for task $taskId, workDir=$workDir")
-        val client = bridgeManager.getClient()
-        System.err.println("[SessionMgr] Got ACP client, creating session...")
+        System.err.println("[AgentSession] Creating new ACP session for $taskId, workDir=$workDir, agent=$agentKind")
+        val client = clientManager.getClient(agentKind)
         val params = SessionCreationParameters(
             cwd = workDir,
             mcpServers = emptyList(),
         )
 
-        val acpSession = client.newSession(params) { sessionId, sessionResponse ->
-            System.err.println("[SessionMgr] Session created callback: sessionId=$sessionId")
+        val acpSession = client.newSession(params) { _, _ ->
             createClientOperations(session, taskId)
         }
-        System.err.println("[SessionMgr] ACP session created successfully")
+
+        val models = if (acpSession.modelsSupported) {
+            acpSession.availableModels.map { AgentModelOption(it.modelId.value, it.name) }
+        } else emptyList()
+        val modes = if (acpSession.modesSupported) {
+            acpSession.availableModes.map { AgentModeOption(it.id.value, it.name) }
+        } else emptyList()
+        session.conversationState.update { it.copy(
+            availableModels = models,
+            availableModes = modes,
+        ) }
 
         session.acpSession = acpSession
-        return acpSession
+        acpSession
     }
 
     private fun createClientOperations(
@@ -323,7 +333,6 @@ class ClaudeSessionManager(
     ): RequestPermissionResponse {
         val requestId = "perm-${System.currentTimeMillis()}"
 
-        // Map ACP permission options to our model
         val choices = permissions.map { opt ->
             PermissionChoice(
                 id = opt.optionId.value,
@@ -337,7 +346,6 @@ class ClaudeSessionManager(
             )
         }
 
-        // Build input summary from tool call content
         val inputSummary = toolCall.content
             ?.filterIsInstance<ToolCallContent.Content>()
             ?.mapNotNull { (it.content as? AcpContentBlock.Text)?.text }
@@ -357,14 +365,11 @@ class ClaudeSessionManager(
             rawInputJson = rawInputJson,
         )
 
-        // Create a deferred for the response
         val deferred = CompletableDeferred<RequestPermissionResponse>()
         session.permissionResponders[requestId] = deferred
 
-        // Update UI state with pending permission
         session.conversationState.update { it.copy(pendingPermission = pending) }
 
-        // Wait for user response from UI
         return try {
             deferred.await()
         } finally {
@@ -373,9 +378,6 @@ class ClaudeSessionManager(
         }
     }
 
-    /**
-     * Called from the UI when the user approves or denies a permission request.
-     */
     fun respondToPermission(taskId: String, requestId: String, optionId: String) {
         val session = sessions[taskId] ?: return
         val deferred = session.permissionResponders[requestId] ?: return
@@ -410,7 +412,6 @@ class ClaudeSessionManager(
                 val block = update.content
                 if (block is AcpContentBlock.Text) {
                     currentText.append(block.text)
-                    // Merge consecutive text blocks
                     val lastBlock = currentBlocks.lastOrNull()
                     if (lastBlock is ContentBlock.Text) {
                         currentBlocks[currentBlocks.lastIndex] =
@@ -456,12 +457,10 @@ class ClaudeSessionManager(
                 }
                 val toolInput = rawInputJson ?: toolContent
 
-                // Check if we already have this tool call
                 val existingIdx = currentBlocks.indexOfFirst {
                     it is ContentBlock.ToolUse && it.id == toolId
                 }
                 if (existingIdx >= 0) {
-                    // Update existing
                     val existing = currentBlocks[existingIdx] as ContentBlock.ToolUse
                     val nextInput = when {
                         rawInputJson != null -> rawInputJson
@@ -469,7 +468,6 @@ class ClaudeSessionManager(
                         else -> existing.input
                     }
                     currentBlocks[existingIdx] = existing.copy(status = status, input = nextInput)
-                    // Add/update result if completed
                     if (status == ToolStatus.Completed || status == ToolStatus.Error) {
                         val resultIdx = currentBlocks.indexOfFirst {
                             it is ContentBlock.ToolResult && it.toolUseId == toolId
@@ -486,7 +484,6 @@ class ClaudeSessionManager(
                         }
                     }
                 } else {
-                    // New tool call
                     currentBlocks.add(ContentBlock.ToolUse(
                         id = toolId,
                         name = update.title ?: "Tool",
@@ -504,9 +501,7 @@ class ClaudeSessionManager(
                 }
             }
 
-            else -> {
-                // Ignore other update types for now
-            }
+            else -> {}
         }
     }
 
@@ -530,10 +525,6 @@ class ClaudeSessionManager(
         return session.conversationState.value.status == SessionStatus.Idle
     }
 
-    /**
-     * Dispose a task's session AND delete its persisted conversation.
-     * Use this when the user explicitly deletes a task.
-     */
     fun dispose(taskId: String) {
         shutdown(taskId)
         try {
@@ -541,9 +532,6 @@ class ClaudeSessionManager(
         } catch (_: Exception) {}
     }
 
-    /**
-     * Shut down a task's session but keep the persisted conversation file.
-     */
     private fun shutdown(taskId: String) {
         val session = sessions.remove(taskId) ?: return
         session.readerJob?.cancel()
@@ -554,13 +542,10 @@ class ClaudeSessionManager(
         }
     }
 
-    /**
-     * Shut down all sessions on app exit without deleting conversation files.
-     */
     fun disposeAll() {
         sessions.keys.toList().forEach { shutdown(it) }
         scope.launch {
-            bridgeManager.shutdown()
+            clientManager.shutdown()
         }
     }
 }

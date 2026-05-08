@@ -92,6 +92,10 @@ data class PermissionChoice(
     val kind: String, // allow_once, allow_always, reject_once, reject_always
 )
 
+data class AgentModelOption(val id: String, val label: String)
+
+data class AgentModeOption(val id: String, val label: String)
+
 data class ConversationState(
     val sessionId: String,
     val model: String = "",
@@ -103,4 +107,6 @@ data class ConversationState(
     val error: String? = null,
     val status: SessionStatus = SessionStatus.Idle,
     val pendingPermission: PendingPermission? = null,
+    val availableModels: List<AgentModelOption> = emptyList(),
+    val availableModes: List<AgentModeOption> = emptyList(),
 )

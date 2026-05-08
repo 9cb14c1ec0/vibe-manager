@@ -94,7 +94,7 @@ class AppViewModel(
         }
     }
 
-    fun createTask(projectId: String, name: String, branchName: String): Boolean {
+    fun createTask(projectId: String, name: String, branchName: String, agentKind: String = _appState.value.defaultAgentKind): Boolean {
         val project = _appState.value.projects.find { it.id == projectId }
         if (project == null) {
             _error.value = "Project not found"
@@ -119,7 +119,8 @@ class AppViewModel(
             branchName = branchName,
             worktreePath = worktreePath,
             createdAt = platform.currentTimeMillis(),
-            claudeSessionId = platform.generateId(),
+            agentKind = agentKind,
+            agentSessionId = platform.generateId(),
         )
         _appState.update { it.copy(tasks = it.tasks + task) }
         save()
@@ -138,7 +139,7 @@ class AppViewModel(
         return platform.listRemoteBranches(project.repoPath)
     }
 
-    fun createTaskFromBranch(projectId: String, name: String, branchName: String): Boolean {
+    fun createTaskFromBranch(projectId: String, name: String, branchName: String, agentKind: String = _appState.value.defaultAgentKind): Boolean {
         val project = _appState.value.projects.find { it.id == projectId }
         if (project == null) {
             _error.value = "Project not found"
@@ -160,7 +161,8 @@ class AppViewModel(
             branchName = branchName,
             worktreePath = worktreePath,
             createdAt = platform.currentTimeMillis(),
-            claudeSessionId = platform.generateId(),
+            agentKind = agentKind,
+            agentSessionId = platform.generateId(),
         )
         _appState.update { it.copy(tasks = it.tasks + task) }
         save()
@@ -182,14 +184,19 @@ class AppViewModel(
         }
     }
 
-    fun markClaudeSessionStarted(id: String) {
+    fun markAgentSessionStarted(id: String) {
         _appState.update { state ->
             state.copy(
                 tasks = state.tasks.map { t ->
-                    if (t.id == id) t.copy(claudeSessionStarted = true) else t
+                    if (t.id == id) t.copy(agentSessionStarted = true) else t
                 }
             )
         }
+        save()
+    }
+
+    fun setDefaultAgentKind(kind: String) {
+        _appState.update { it.copy(defaultAgentKind = kind) }
         save()
     }
 

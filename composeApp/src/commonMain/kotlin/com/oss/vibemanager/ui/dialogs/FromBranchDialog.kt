@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Row
+import io.github.composefluent.component.Button
 import io.github.composefluent.component.ContentDialog
 import io.github.composefluent.component.ContentDialogButton
 import io.github.composefluent.component.Text
@@ -31,11 +33,19 @@ private data class BranchItem(val name: String, val isRemote: Boolean)
 fun FromBranchDialog(
     localBranches: List<String>,
     remoteBranches: List<String>,
+    availableAgents: List<Pair<String, String>>,
+    defaultAgent: String,
     onDismiss: () -> Unit,
-    onCreate: (name: String, branch: String) -> Unit,
+    onCreate: (name: String, branch: String, agentKind: String) -> Unit,
 ) {
     var selectedBranch by remember { mutableStateOf<BranchItem?>(null) }
     var taskName by remember { mutableStateOf("") }
+    var agentKind by remember(defaultAgent) {
+        mutableStateOf(
+            if (availableAgents.any { it.first == defaultAgent }) defaultAgent
+            else availableAgents.firstOrNull()?.first ?: "Claude"
+        )
+    }
 
     val items = remember(localBranches, remoteBranches) {
         buildList {
@@ -115,6 +125,14 @@ fun FromBranchDialog(
                     onValueChange = { taskName = it },
                     placeholder = { Text("e.g. Fix login bug") },
                 )
+                Text("Agent:", fontSize = 14.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for ((id, label) in availableAgents) {
+                        Button(onClick = { agentKind = id }) {
+                            Text(if (agentKind == id) "$label ✓" else label)
+                        }
+                    }
+                }
             }
         },
         primaryButtonText = "Create",
@@ -123,7 +141,7 @@ fun FromBranchDialog(
             when (button) {
                 ContentDialogButton.Primary -> {
                     if (selectedBranch != null && taskName.isNotBlank()) {
-                        onCreate(taskName.trim(), selectedBranch!!.name)
+                        onCreate(taskName.trim(), selectedBranch!!.name, agentKind)
                     }
                 }
                 else -> onDismiss()
