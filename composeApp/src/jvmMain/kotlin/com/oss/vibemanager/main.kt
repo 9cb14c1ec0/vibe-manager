@@ -25,10 +25,13 @@ import com.oss.vibemanager.platform.getImagesFromClipboard
 import com.oss.vibemanager.ui.screens.TaskChatScreen
 import com.oss.vibemanager.viewmodel.AppViewModel
 import com.oss.vibemanager.viewmodel.NavigationTarget
+import com.oss.vibemanager.web.WebRemoteServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.awt.Desktop
 import java.io.File
+import java.net.URI
 
 fun main() = application {
     val stateDir = System.getProperty("user.home") + "/.vibemanager"
@@ -50,8 +53,12 @@ fun main() = application {
         onPlanApproved = { viewModel.setPermissionMode("acceptEdits") },
     )
 
+    val webRemoteServer = WebRemoteServer(viewModel, sessionManager, platformOps)
+    webRemoteServer.bind(sessionScope)
+
     Window(
         onCloseRequest = {
+            webRemoteServer.stop()
             sessionManager.disposeAll()
             exitApplication()
         },
@@ -149,6 +156,16 @@ fun main() = application {
                 sessionManager.isIdle(taskId)
             },
             availableAgents = availableAgents,
+            lanHostProvider = { WebRemoteServer.detectLanAddress() },
+            onOpenUrl = { url ->
+                try {
+                    if (Desktop.isDesktopSupported()) {
+                        Desktop.getDesktop().browse(URI(url))
+                    }
+                } catch (e: Exception) {
+                    System.err.println("[VibeManager] Failed to open URL: ${e.message}")
+                }
+            },
         )
     }
 }

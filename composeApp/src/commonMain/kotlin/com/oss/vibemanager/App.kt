@@ -21,9 +21,12 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
@@ -38,6 +41,7 @@ import io.github.composefluent.component.MenuItem
 import io.github.composefluent.component.NavigationDisplayMode
 import io.github.composefluent.component.NavigationView
 import io.github.composefluent.component.Text
+import io.github.composefluent.component.TextField
 import io.github.composefluent.component.rememberNavigationState
 import io.github.composefluent.icons.Icons
 import io.github.composefluent.icons.regular.Add
@@ -61,10 +65,13 @@ fun App(
     availableAgents: List<Pair<String, String>> = listOf("Claude" to "Claude Code"),
     onDeleteTask: (taskId: String) -> Unit = {},
     isTaskIdle: (taskId: String) -> Boolean = { false },
+    lanHostProvider: () -> String? = { null },
+    onOpenUrl: (String) -> Unit = {},
 ) {
     val appState by viewModel.appState.collectAsState()
     val navigation by viewModel.navigation.collectAsState()
     val error by viewModel.error.collectAsState()
+    val clipboard = LocalClipboardManager.current
     var showAddProject by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     val navigationState = rememberNavigationState()
@@ -290,6 +297,66 @@ fun App(
                             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                         ) {
                             Text(if (currentPermissionMode == id) "$label (current)" else label)
+                        }
+                    }
+
+                    Spacer(Modifier.padding(top = 12.dp))
+
+                    // Web Remote section
+                    Text("Web Remote", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    Button(
+                        onClick = { viewModel.setWebRemoteEnabled(!appState.webRemoteEnabled) },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    ) {
+                        Text(if (appState.webRemoteEnabled) "Enabled (click to disable)" else "Disabled (click to enable)")
+                    }
+
+                    var portText by remember(appState.webRemotePort) {
+                        mutableStateOf(appState.webRemotePort.toString())
+                    }
+                    Text("Port", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+                    TextField(
+                        value = portText,
+                        onValueChange = { v ->
+                            portText = v.filter { it.isDigit() }.take(5)
+                            portText.toIntOrNull()?.let { p ->
+                                if (p in 1..65535) viewModel.setWebRemotePort(p)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    )
+
+                    if (appState.webRemoteEnabled) {
+                        Text("Token", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+                        SelectionContainer(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                            Text(appState.webRemoteToken, fontSize = 12.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                            Button(
+                                onClick = {
+                                    clipboard.setText(AnnotatedString(appState.webRemoteToken))
+                                },
+                                modifier = Modifier.padding(end = 4.dp),
+                            ) { Text("Copy token") }
+                            Button(
+                                onClick = { viewModel.regenerateWebRemoteToken() },
+                            ) { Text("Regenerate") }
+                        }
+
+                        val host = lanHostProvider() ?: "localhost"
+                        val url = "http://$host:${appState.webRemotePort}/auth?token=${appState.webRemoteToken}"
+                        Text("Open from another device:", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                        SelectionContainer(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                            Text(url, fontSize = 12.sp)
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                            Button(
+                                onClick = { clipboard.setText(AnnotatedString(url)) },
+                                modifier = Modifier.padding(end = 4.dp),
+                            ) { Text("Copy URL") }
+                            Button(
+                                onClick = { onOpenUrl(url) },
+                            ) { Text("Open in browser") }
                         }
                     }
                 }

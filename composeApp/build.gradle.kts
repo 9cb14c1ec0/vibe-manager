@@ -38,6 +38,10 @@ kotlin {
             implementation("org.slf4j:slf4j-simple:2.0.16")
             implementation("com.risaboss:bossterm-compose:1.0.92")
             implementation("com.risaboss:bossterm-core:1.0.92")
+            implementation(libs.ktor.server.core)
+            implementation(libs.ktor.server.netty)
+            implementation(libs.ktor.server.html.builder)
+            implementation(libs.ktor.server.status.pages)
         }
     }
 }
