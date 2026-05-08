@@ -16,7 +16,9 @@ import com.oss.vibemanager.git.GitOperations
 import com.oss.vibemanager.git.JvmPlatformOperations
 import com.oss.vibemanager.persistence.AppStateRepository
 import com.oss.vibemanager.persistence.JvmFileOperations
+import com.oss.vibemanager.model.ContentBlock
 import com.oss.vibemanager.platform.chooseDirectory
+import com.oss.vibemanager.platform.getImagesFromClipboard
 import com.oss.vibemanager.ui.screens.TaskChatScreen
 import com.oss.vibemanager.viewmodel.AppViewModel
 import com.oss.vibemanager.viewmodel.NavigationTarget
@@ -70,7 +72,7 @@ fun main() = application {
                         onBack = {
                             viewModel.navigateTo(NavigationTarget.ProjectDetail(task.projectId))
                         },
-                        onSendMessage = { prompt ->
+                        onSendMessage = { prompt, images ->
                             if (!task.claudeSessionStarted) {
                                 viewModel.markClaudeSessionStarted(task.id)
                             }
@@ -82,6 +84,7 @@ fun main() = application {
                                 permissionMode = appState.permissionMode,
                                 model = appState.model,
                                 hasExistingSession = task.claudeSessionStarted,
+                                images = images,
                             )
                         },
                         onStopGeneration = {
@@ -96,6 +99,7 @@ fun main() = application {
                         onPermissionRespond = { requestId, optionId ->
                             sessionManager.respondToPermission(task.id, requestId, optionId)
                         },
+                        pasteImageHandler = { getImagesFromClipboard() },
                         onGetChangedFiles = {
                             GitOperations.getChangedFiles(task.worktreePath)
                         },

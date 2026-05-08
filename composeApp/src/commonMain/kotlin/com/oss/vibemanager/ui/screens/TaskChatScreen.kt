@@ -84,7 +84,7 @@ fun TaskChatScreen(
     selectedModel: String,
     permissionMode: String,
     onBack: () -> Unit,
-    onSendMessage: (String) -> Unit,
+    onSendMessage: (String, List<ContentBlock.Image>) -> Unit,
     onStopGeneration: () -> Unit,
     onModelSelected: (String) -> Unit,
     onModeSelected: (String) -> Unit,
@@ -96,6 +96,7 @@ fun TaskChatScreen(
     terminalPanelHeight: Float = 280f,
     onTerminalPanelHeightChanged: (Float) -> Unit = {},
     terminalContent: (@Composable (onExit: () -> Unit) -> Unit)? = null,
+    pasteImageHandler: () -> List<ContentBlock.Image> = { emptyList() },
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -271,6 +272,7 @@ fun TaskChatScreen(
                     onSend = onSendMessage,
                     onStop = onStopGeneration,
                     isStreaming = conversationState.isStreaming,
+                    pasteImageHandler = pasteImageHandler,
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                 )
             }

@@ -104,15 +104,20 @@ class ClaudeSessionManager(
         permissionMode: String = "acceptEdits",
         model: String = "",
         hasExistingSession: Boolean = false,
+        images: List<ContentBlock.Image> = emptyList(),
     ) {
         val session = getOrCreateSession(taskId, sessionId)
         val state = session.conversationState
 
         // Add user message
+        val messageBlocks = mutableListOf<ContentBlock>()
+        messageBlocks.add(ContentBlock.Text(prompt))
+        messageBlocks.addAll(images)
+
         val userMessage = ConversationMessage(
             id = "user-${System.currentTimeMillis()}",
             role = MessageRole.User,
-            blocks = listOf(ContentBlock.Text(prompt)),
+            blocks = messageBlocks,
             timestamp = System.currentTimeMillis(),
         )
 
@@ -163,12 +168,17 @@ class ClaudeSessionManager(
                     System.err.println("[SessionMgr] Failed to set mode: ${e.message}")
                 }
 
-                System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}...")
+                System.err.println("[SessionMgr] Sending prompt: ${prompt.take(100)}... (images: ${images.size})")
+
+                // Build ACP content blocks
+                val acpContentBlocks = mutableListOf<AcpContentBlock>()
+                acpContentBlocks.add(AcpContentBlock.Text(prompt))
+                images.forEach { image ->
+                    acpContentBlocks.add(AcpContentBlock.Image(image.base64Data, image.mediaType))
+                }
 
                 // Send the prompt and collect events
-                acpSession.prompt(
-                    listOf(AcpContentBlock.Text(prompt)),
-                ).collect { event ->
+                acpSession.prompt(acpContentBlocks).collect { event ->
                     System.err.println("[SessionMgr] Received event: ${event::class.simpleName}")
                     when (event) {
                         is Event.SessionUpdateEvent -> {

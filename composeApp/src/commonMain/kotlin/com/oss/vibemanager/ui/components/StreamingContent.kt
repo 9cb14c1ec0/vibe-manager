@@ -165,6 +165,14 @@ private fun RenderStreamBlock(block: ContentBlock, allBlocks: List<ContentBlock>
         is ContentBlock.ToolResult -> {
             // Rendered with ToolUse
         }
+        is ContentBlock.Image -> {
+            Text(
+                text = "Streaming image...",
+                fontSize = 12.sp,
+                color = FluentTheme.colors.text.text.tertiary,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        }
     }
 }
 

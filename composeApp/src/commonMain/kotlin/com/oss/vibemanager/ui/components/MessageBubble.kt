@@ -1,6 +1,7 @@
 package com.oss.vibemanager.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -8,16 +9,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.github.composefluent.FluentTheme
-import io.github.composefluent.background.Layer
-import io.github.composefluent.component.Text
 import com.oss.vibemanager.model.ContentBlock
 import com.oss.vibemanager.model.ConversationMessage
 import com.oss.vibemanager.model.MessageRole
 import com.oss.vibemanager.model.ToolStatus
+import com.oss.vibemanager.util.decodeBase64ToImageBitmap
+import io.github.composefluent.FluentTheme
+import io.github.composefluent.background.Layer
+import io.github.composefluent.component.Text
 
 /**
  * Represents a run of consecutive blocks of the same "kind" for grouping purposes.
@@ -153,6 +156,25 @@ private fun RenderBlock(block: ContentBlock) {
         }
         is ContentBlock.ToolResult -> {
             ToolResultBlock(result = block)
+        }
+        is ContentBlock.Image -> {
+            val imageBitmap = decodeBase64ToImageBitmap(block.base64Data)
+            if (imageBitmap != null) {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = "User pasted image",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                )
+            } else {
+                Text(
+                    text = "Failed to load image (${block.mediaType})",
+                    fontSize = 12.sp,
+                    color = androidx.compose.ui.graphics.Color(0xFFE81123),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+            }
         }
     }
 }

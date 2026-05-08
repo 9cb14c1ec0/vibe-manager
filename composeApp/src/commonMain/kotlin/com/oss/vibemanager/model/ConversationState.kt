@@ -49,6 +49,13 @@ sealed class ContentBlock {
         val content: String,
         val isError: Boolean = false,
     ) : ContentBlock()
+
+    @Serializable
+    @SerialName("image")
+    data class Image(
+        val base64Data: String,
+        val mediaType: String,
+    ) : ContentBlock()
 }
 
 @Serializable
