@@ -1,4 +1,4 @@
-package com.oss.vibemanager.claude
+package com.oss.vibemanager.agents
 
 import com.agentclientprotocol.common.ClientSessionOperations
 import com.agentclientprotocol.model.*

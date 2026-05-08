@@ -58,6 +58,7 @@ fun App(
     onBrowseDirectory: () -> String?,
     chatContent: @Composable (taskId: String, isActive: Boolean) -> Unit,
     gitInfoProvider: (repoPath: String) -> Pair<String, Boolean>,
+    availableAgents: List<Pair<String, String>> = listOf("Claude" to "Claude Code"),
     onDeleteTask: (taskId: String) -> Unit = {},
     isTaskIdle: (taskId: String) -> Boolean = { false },
 ) {
@@ -185,13 +186,15 @@ fun App(
                                     tasks = tasks,
                                     gitBranch = branch,
                                     gitClean = clean,
-                                    onCreateTask = { name, branchName ->
-                                        viewModel.createTask(project.id, name, branchName)
+                                    availableAgents = availableAgents,
+                                    defaultAgent = appState.defaultAgentKind,
+                                    onCreateTask = { name, branchName, agentKind ->
+                                        viewModel.createTask(project.id, name, branchName, agentKind)
                                     },
                                     onListBranches = { viewModel.listBranches(project.id) },
                                     onListRemoteBranches = { viewModel.listRemoteBranches(project.id) },
-                                    onCreateTaskFromBranch = { name, branchName ->
-                                        viewModel.createTaskFromBranch(project.id, name, branchName)
+                                    onCreateTaskFromBranch = { name, branchName, agentKind ->
+                                        viewModel.createTaskFromBranch(project.id, name, branchName, agentKind)
                                     },
                                     onOpenTask = { task ->
                                         viewModel.updateTaskState(task.id, TaskState.Running)
@@ -240,7 +243,6 @@ fun App(
 
     if (showSettings) {
         val currentPermissionMode = appState.permissionMode
-        val currentModel = appState.model
         ContentDialog(
             title = "Settings",
             visible = true,
@@ -262,21 +264,15 @@ fun App(
 
                     Spacer(Modifier.padding(top = 12.dp))
 
-                    // Model section
-                    Text("Default Model", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    for ((id, label) in listOf(
-                        "claude-sonnet-4-5" to "Claude Sonnet 4.5",
-                        "claude-sonnet-4-6" to "Claude Sonnet 4.6",
-                        "claude-sonnet-4-7" to "Claude Sonnet 4.7",
-                        "claude-opus-4-5" to "Claude Opus 4.5",
-                        "claude-opus-4-6" to "Claude Opus 4.6",
-                        "claude-opus-4-7" to "Claude Opus 4.7",
-                    )) {
+                    // Default agent section
+                    Text("Default Agent", fontSize = 16.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    val currentDefaultAgent = appState.defaultAgentKind
+                    for ((id, label) in availableAgents) {
                         Button(
-                            onClick = { viewModel.setModel(id) },
+                            onClick = { viewModel.setDefaultAgentKind(id) },
                             modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                         ) {
-                            Text(if (currentModel == id) "$label (current)" else label)
+                            Text(if (currentDefaultAgent == id) "$label (current)" else label)
                         }
                     }
 

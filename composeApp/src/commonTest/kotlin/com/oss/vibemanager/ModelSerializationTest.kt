@@ -40,6 +40,27 @@ class ModelSerializationTest {
     }
 
     @Test
+    fun taskWithAgentKindRoundTrips() {
+        val task = Task(
+            id = "task-id",
+            projectId = "proj-id",
+            name = "Add feature",
+            branchName = "add-feature",
+            worktreePath = "/tmp/worktree",
+            state = TaskState.Running,
+            createdAt = 1700000000000L,
+            agentKind = "OpenCode",
+            agentSessionId = "sess-1",
+            agentSessionStarted = true,
+        )
+        val encoded = json.encodeToString(Task.serializer(), task)
+        val decoded = json.decodeFromString(Task.serializer(), encoded)
+        assertEquals(task, decoded)
+        assertTrue(encoded.contains("OpenCode"))
+        assertTrue(encoded.contains("agentSessionId"))
+    }
+
+    @Test
     fun conversationRoundTrips() {
         val conversation = PersistedConversation(
             sessionId = "session-123",

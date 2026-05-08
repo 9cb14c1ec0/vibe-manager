@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.Text
+import com.oss.vibemanager.model.AgentModelOption
 import com.oss.vibemanager.model.ChangedFile
 import com.oss.vibemanager.model.ContentBlock
 import com.oss.vibemanager.model.ConversationState
@@ -66,16 +67,6 @@ private val DiffPanelMaxWidth: Dp = 900.dp
 private val TerminalPanelMinHeight: Dp = 120.dp
 private val TerminalPanelMaxHeight: Dp = 700.dp
 
-private data class ModelOption(val id: String, val label: String)
-
-private val MODEL_OPTIONS = listOf(
-    ModelOption("claude-sonnet-4-5", "Sonnet 4.5"),
-    ModelOption("claude-sonnet-4-6", "Sonnet 4.6"),
-    ModelOption("claude-sonnet-4-7", "Sonnet 4.7"),
-    ModelOption("claude-opus-4-5", "Opus 4.5"),
-    ModelOption("claude-opus-4-6", "Opus 4.6"),
-    ModelOption("claude-opus-4-7", "Opus 4.7"),
-)
 
 @Composable
 fun TaskChatScreen(
@@ -143,11 +134,14 @@ fun TaskChatScreen(
             // Spacer to push controls to the right
             Box(modifier = Modifier.weight(1f))
 
-            // Model dropdown
-            ModelDropdown(
-                selectedModel = selectedModel,
-                onModelSelected = onModelSelected,
-            )
+            // Model dropdown — only when the agent advertises models
+            if (conversationState.availableModels.isNotEmpty()) {
+                ModelDropdown(
+                    options = conversationState.availableModels,
+                    selectedModel = selectedModel,
+                    onModelSelected = onModelSelected,
+                )
+            }
 
             // Mode selector
             SegmentedControl(
@@ -351,12 +345,14 @@ fun TaskChatScreen(
 
 @Composable
 private fun ModelDropdown(
+    options: List<AgentModelOption>,
     selectedModel: String,
     onModelSelected: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val currentLabel = MODEL_OPTIONS.firstOrNull { it.id == selectedModel }?.label ?: selectedModel
+    val currentLabel = options.firstOrNull { it.id == selectedModel }?.label
+        ?: selectedModel.ifEmpty { "Default" }
 
     Box(modifier = modifier) {
         // Trigger button
@@ -393,7 +389,7 @@ private fun ModelDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false },
         ) {
-            MODEL_OPTIONS.forEach { option ->
+            options.forEach { option ->
                 DropdownMenuItem(
                     text = {
                         androidx.compose.material3.Text(
