@@ -21,6 +21,7 @@ internal fun extractPlan(input: String): String? {
     if (input.isBlank()) return null
     return try {
         val obj = planJson.parseToJsonElement(input).jsonObject
+        if (obj.containsKey("file_path")) return null
         ((obj["plan"] as? JsonPrimitive)?.content
             ?: (obj["content"] as? JsonPrimitive)?.content)
             ?.takeIf { it.isNotBlank() }
