@@ -1,6 +1,6 @@
-// Minimal client glue for Vibe Manager web remote.
-// Handles: data-method/data-href buttons (DELETE/POST), data-action="send"/"stop"/"permission",
-// and the SSE stream that updates #conversation.
+// Vibe Manager web remote client.
+// Handles: data-method/data-href buttons, data-action buttons (send/stop/permission/set-mode),
+// Enter-to-send, SSE streaming with markdown post-processing.
 
 (function () {
     function formData(form) {
@@ -19,7 +19,10 @@
         }).catch(function (e) { alert("Network error: " + e); });
     }
 
+    // ── Click delegation ────────────────────────────────────────────────
+
     document.addEventListener("click", function (e) {
+        // data-method buttons (DELETE, etc.)
         var btn = e.target.closest("[data-method]");
         if (btn) {
             e.preventDefault();
@@ -32,32 +35,54 @@
             return;
         }
 
+        // data-action buttons
         var actionBtn = e.target.closest("[data-action]");
-        if (actionBtn && actionBtn.tagName === "BUTTON" && actionBtn.type !== "submit") {
-            var action = actionBtn.getAttribute("data-action");
-            var taskId = actionBtn.getAttribute("data-task-id");
-            if (action === "stop" && taskId) {
-                e.preventDefault();
-                fetch("/tasks/" + encodeURIComponent(taskId) + "/stop", {
-                    method: "POST",
-                    credentials: "same-origin"
+        if (!actionBtn) return;
+
+        var action = actionBtn.getAttribute("data-action");
+        var taskId = actionBtn.getAttribute("data-task-id");
+
+        if (action === "stop" && taskId) {
+            e.preventDefault();
+            fetch("/tasks/" + encodeURIComponent(taskId) + "/stop", {
+                method: "POST",
+                credentials: "same-origin"
+            });
+        } else if (action === "permission" && taskId) {
+            e.preventDefault();
+            var requestId = actionBtn.getAttribute("data-request-id");
+            var optionId = actionBtn.getAttribute("data-option-id");
+            var body = new URLSearchParams();
+            body.append("requestId", requestId);
+            body.append("optionId", optionId);
+            fetch("/tasks/" + encodeURIComponent(taskId) + "/permission", {
+                method: "POST",
+                credentials: "same-origin",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: body
+            });
+        } else if (action === "set-mode") {
+            e.preventDefault();
+            var mode = actionBtn.getAttribute("data-mode");
+            // Update UI immediately
+            var control = actionBtn.closest(".segmented-control");
+            if (control) {
+                control.querySelectorAll(".seg-btn").forEach(function (b) {
+                    b.classList.toggle("active", b.getAttribute("data-mode") === mode);
                 });
-            } else if (action === "permission" && taskId) {
-                e.preventDefault();
-                var requestId = actionBtn.getAttribute("data-request-id");
-                var optionId = actionBtn.getAttribute("data-option-id");
-                var body = new URLSearchParams();
-                body.append("requestId", requestId);
-                body.append("optionId", optionId);
-                fetch("/tasks/" + encodeURIComponent(taskId) + "/permission", {
+            }
+            if (taskId) {
+                fetch("/tasks/" + encodeURIComponent(taskId) + "/mode", {
                     method: "POST",
                     credentials: "same-origin",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: body
+                    body: new URLSearchParams({ mode: mode })
                 });
             }
         }
     });
+
+    // ── Form submit (send message) ──────────────────────────────────────
 
     document.addEventListener("submit", function (e) {
         var form = e.target;
@@ -80,7 +105,41 @@
         });
     });
 
-    // SSE stream for the conversation view.
+    // ── Enter-to-send ───────────────────────────────────────────────────
+
+    var sendForm = document.querySelector("form[data-action='send']");
+    if (sendForm) {
+        var textarea = sendForm.querySelector("textarea[name='prompt']");
+        if (textarea) {
+            textarea.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                    sendForm.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+                }
+            });
+        }
+    }
+
+    // ── Markdown rendering ──────────────────────────────────────────────
+
+    function renderMarkdown(root) {
+        if (typeof marked === "undefined") return;
+        root.querySelectorAll("[data-md]:not([data-rendered])").forEach(function (el) {
+            el.innerHTML = marked.parse(el.textContent);
+            el.setAttribute("data-rendered", "1");
+        });
+    }
+
+    // Render any markdown already on the page (initial load)
+    if (typeof marked !== "undefined") {
+        renderMarkdown(document);
+    } else {
+        // marked.js may still be loading (defer). Try once after a short delay.
+        setTimeout(function () { renderMarkdown(document); }, 500);
+    }
+
+    // ── SSE stream ──────────────────────────────────────────────────────
+
     var convo = document.getElementById("conversation");
     if (convo) {
         var taskId = convo.getAttribute("data-task-id");
@@ -89,6 +148,7 @@
             es.addEventListener("update", function (evt) {
                 convo.innerHTML = evt.data;
                 convo.scrollTop = convo.scrollHeight;
+                renderMarkdown(convo);
             });
             es.onerror = function () {
                 // Browser auto-retries; nothing to do.
