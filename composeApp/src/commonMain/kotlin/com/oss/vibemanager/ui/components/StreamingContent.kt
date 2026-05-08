@@ -96,7 +96,7 @@ private fun groupStreamingBlocks(blocks: List<ContentBlock>): List<StreamBlockGr
     for (block in blocks) {
         when (block) {
             is ContentBlock.ToolUse -> {
-                if (isPlanTool(block) || isEditTool(block)) {
+                if (isPlanTool(block) || isEditTool(block) || isWriteTool(block)) {
                     if (currentToolRun.isNotEmpty()) {
                         groups.add(StreamBlockGroup.ToolRun(currentToolRun.toList()))
                         currentToolRun = mutableListOf()
