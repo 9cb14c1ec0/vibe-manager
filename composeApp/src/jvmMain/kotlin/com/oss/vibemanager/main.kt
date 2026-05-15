@@ -12,6 +12,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.oss.vibemanager.agents.AgentClientManager
+import com.oss.vibemanager.agents.AgentKind
 import com.oss.vibemanager.agents.AgentRegistry
 import com.oss.vibemanager.agents.AgentSessionManager
 import com.oss.vibemanager.agents.parseAgentKind
@@ -23,6 +24,7 @@ import com.oss.vibemanager.model.ContentBlock
 import com.oss.vibemanager.platform.chooseDirectory
 import com.oss.vibemanager.platform.getImagesFromClipboard
 import com.oss.vibemanager.ui.screens.TaskChatScreen
+import com.oss.vibemanager.ui.screens.TerminalTaskScreen
 import com.oss.vibemanager.viewmodel.AppViewModel
 import com.oss.vibemanager.viewmodel.NavigationTarget
 import com.oss.vibemanager.web.WebRemoteServer
@@ -71,7 +73,23 @@ fun main() = application {
             chatContent = { taskId, isActive ->
                 val appState by viewModel.appState.collectAsState()
                 val task = appState.tasks.find { it.id == taskId }
-                if (task != null) {
+                if (task != null && parseAgentKind(task.agentKind) == AgentKind.ClaudeTerminal) {
+                    TerminalTaskScreen(
+                        taskName = task.name,
+                        workingDirectory = task.worktreePath,
+                        onBack = {
+                            viewModel.navigateTo(NavigationTarget.ProjectDetail(task.projectId))
+                        },
+                        onGetChangedFiles = {
+                            GitOperations.getChangedFiles(task.worktreePath)
+                        },
+                        onGetFileDiff = { file ->
+                            GitOperations.getFileDiff(task.worktreePath, file.path, file.status)
+                        },
+                        diffPanelWidth = appState.diffPanelWidth,
+                        onDiffPanelWidthChanged = viewModel::setDiffPanelWidth,
+                    )
+                } else if (task != null) {
                     val conversationState by sessionManager
                         .getConversationState(task.id, task.agentSessionId)
                         .collectAsState()

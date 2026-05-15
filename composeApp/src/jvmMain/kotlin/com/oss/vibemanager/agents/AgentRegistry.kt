@@ -2,11 +2,12 @@ package com.oss.vibemanager.agents
 
 import java.io.File
 
-enum class AgentKind { Claude, OpenCode, Codex }
+enum class AgentKind { Claude, ClaudeTerminal, OpenCode, Codex }
 
 fun parseAgentKind(value: String?): AgentKind = when (value?.lowercase()) {
     "opencode" -> AgentKind.OpenCode
     "codex" -> AgentKind.Codex
+    "claudeterminal" -> AgentKind.ClaudeTerminal
     else -> AgentKind.Claude
 }
 
@@ -29,6 +30,7 @@ object AgentRegistry {
         this.bridgePath = bridgePath
         launchers.clear()
         register(ClaudeLauncher(bridgePath))
+        register(ClaudeTerminalLauncher())
         register(OpenCodeLauncher())
         register(CodexLauncher())
     }
